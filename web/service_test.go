@@ -96,6 +96,84 @@ func TestGetPlacesSkipsNonFiniteAndOutOfRangeCoords(t *testing.T) {
 	}
 }
 
+func TestGetDownloadPrefersXLSXOverCSV(t *testing.T) {
+	dir := t.TempDir()
+	svc := NewService(nil, dir)
+
+	writeCSV(t, dir, "job-both", "title\nA\n")
+	if err := os.WriteFile(filepath.Join(dir, "job-both.xlsx"), []byte("fake xlsx"), 0o600); err != nil {
+		t.Fatalf("write xlsx: %v", err)
+	}
+
+	got, err := svc.GetDownload(context.Background(), "job-both")
+	if err != nil {
+		t.Fatalf("GetDownload: %v", err)
+	}
+
+	if filepath.Ext(got) != ".xlsx" {
+		t.Fatalf("expected xlsx to be preferred, got %q", got)
+	}
+}
+
+func TestGetDownloadFallsBackToCSV(t *testing.T) {
+	dir := t.TempDir()
+	svc := NewService(nil, dir)
+
+	writeCSV(t, dir, "job-csv-only", "title\nA\n")
+
+	got, err := svc.GetDownload(context.Background(), "job-csv-only")
+	if err != nil {
+		t.Fatalf("GetDownload: %v", err)
+	}
+
+	if filepath.Ext(got) != ".csv" {
+		t.Fatalf("expected csv fallback, got %q", got)
+	}
+}
+
+func TestGetDownloadMissingFile(t *testing.T) {
+	svc := NewService(nil, t.TempDir())
+
+	if _, err := svc.GetDownload(context.Background(), "missing"); err == nil {
+		t.Fatal("expected error for missing output")
+	}
+}
+
+func TestDeleteRemovesBothCSVAndXLSX(t *testing.T) {
+	dir := t.TempDir()
+	repo := &memoryJobRepoForServiceTest{}
+	svc := NewService(repo, dir)
+
+	writeCSV(t, dir, "job-del", "title\nA\n")
+
+	xlsxPath := filepath.Join(dir, "job-del.xlsx")
+	if err := os.WriteFile(xlsxPath, []byte("fake xlsx"), 0o600); err != nil {
+		t.Fatalf("write xlsx: %v", err)
+	}
+
+	if err := svc.Delete(context.Background(), "job-del"); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, "job-del.csv")); !os.IsNotExist(err) {
+		t.Fatal("csv file should have been removed")
+	}
+
+	if _, err := os.Stat(xlsxPath); !os.IsNotExist(err) {
+		t.Fatal("xlsx file should have been removed")
+	}
+}
+
+type memoryJobRepoForServiceTest struct{}
+
+func (r *memoryJobRepoForServiceTest) Get(context.Context, string) (Job, error) { return Job{}, nil }
+func (r *memoryJobRepoForServiceTest) Create(context.Context, *Job) error       { return nil }
+func (r *memoryJobRepoForServiceTest) Delete(context.Context, string) error     { return nil }
+func (r *memoryJobRepoForServiceTest) Select(context.Context, SelectParams) ([]Job, error) {
+	return nil, nil
+}
+func (r *memoryJobRepoForServiceTest) Update(context.Context, *Job) error { return nil }
+
 func TestGetPlacesMissingCSV(t *testing.T) {
 	svc := NewService(nil, t.TempDir())
 

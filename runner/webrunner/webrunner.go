@@ -196,6 +196,21 @@ func (w *webrunner) scrapeJob(ctx context.Context, job *web.Job) error {
 
 	outpath := filepath.Join(w.cfg.DataFolder, job.ID+".csv")
 
+	// Runs last (defers execute LIFO, and this is registered before outfile's
+	// and mate's): by the time it fires, the CSV is fully closed on disk and
+	// job.Status already reflects the outcome the caller committed to the DB.
+	defer func() {
+		if job.Status != web.StatusOK {
+			return
+		}
+
+		xlsxPath := strings.TrimSuffix(outpath, ".csv") + ".xlsx"
+
+		if err := exportXLSX(outpath, xlsxPath); err != nil {
+			log.Printf("failed to export xlsx for job %s: %v", job.ID, err)
+		}
+	}()
+
 	outfile, err := os.Create(outpath)
 	if err != nil {
 		return err

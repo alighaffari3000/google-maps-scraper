@@ -33,20 +33,35 @@ func (s *Service) Get(ctx context.Context, id string) (Job, error) {
 }
 
 func (s *Service) Delete(ctx context.Context, id string) error {
-	datapath, err := s.csvPath(id)
+	csvPath, err := s.csvPath(id)
 	if err != nil {
 		return err
 	}
 
-	if _, err := os.Stat(datapath); err == nil {
-		if err := os.Remove(datapath); err != nil {
-			return err
-		}
-	} else if !os.IsNotExist(err) {
+	if err := removeIfExists(csvPath); err != nil {
+		return err
+	}
+
+	xlsxPath, err := s.xlsxPath(id)
+	if err != nil {
+		return err
+	}
+
+	if err := removeIfExists(xlsxPath); err != nil {
 		return err
 	}
 
 	return s.repo.Delete(ctx, id)
+}
+
+func removeIfExists(path string) error {
+	if _, err := os.Stat(path); err == nil {
+		return os.Remove(path)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	return nil
 }
 
 func (s *Service) Update(ctx context.Context, job *Job) error {
@@ -78,4 +93,40 @@ func (s *Service) GetCSV(_ context.Context, id string) (string, error) {
 	}
 
 	return datapath, nil
+}
+
+// xlsxPath returns the on-disk path of a job's XLSX export, rejecting ids
+// that could escape the data folder.
+func (s *Service) xlsxPath(id string) (string, error) {
+	if strings.Contains(id, "/") || strings.Contains(id, "\\") || strings.Contains(id, "..") {
+		return "", fmt.Errorf("invalid file name")
+	}
+
+	return filepath.Join(s.dataFolder, id+".xlsx"), nil
+}
+
+// GetDownload returns the on-disk path users should download for a job,
+// preferring the XLSX export when one exists (it renders non-Latin text like
+// Persian reliably, unlike CSV opened in Excel) and falling back to the raw
+// CSV for jobs that predate the XLSX export or whose conversion failed.
+func (s *Service) GetDownload(_ context.Context, id string) (string, error) {
+	xlsxPath, err := s.xlsxPath(id)
+	if err != nil {
+		return "", err
+	}
+
+	if _, err := os.Stat(xlsxPath); err == nil {
+		return xlsxPath, nil
+	}
+
+	csvPath, err := s.csvPath(id)
+	if err != nil {
+		return "", err
+	}
+
+	if _, err := os.Stat(csvPath); os.IsNotExist(err) {
+		return "", fmt.Errorf("output file not found for job %s", id)
+	}
+
+	return csvPath, nil
 }

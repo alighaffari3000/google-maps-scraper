@@ -425,7 +425,7 @@ func (s *Server) download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filePath, err := s.svc.GetCSV(ctx, id.String())
+	filePath, err := s.svc.GetDownload(ctx, id.String())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -439,8 +439,14 @@ func (s *Server) download(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	fileName := filepath.Base(filePath)
+
+	contentType := "text/csv"
+	if strings.HasSuffix(filePath, ".xlsx") {
+		contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	}
+
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
-	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Type", contentType)
 
 	_, err = io.Copy(w, file)
 	if err != nil {
