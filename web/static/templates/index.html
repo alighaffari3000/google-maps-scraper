@@ -121,8 +121,7 @@
                                         <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.19l3.71-3.96a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06z" clip-rule="evenodd"/></svg>
                                     </summary>
                                     <div class="px-3 space-y-3">
-                                        <p class="text-xs text-slate-500">Click the map (or drag the marker) to set the search location.</p>
-                                        <div id="location-picker-map" class="w-full h-56 rounded-lg border border-slate-300"></div>
+                                        <p class="text-xs text-slate-500">Use the map in the middle of the page to set the search location, or enter coordinates manually below.</p>
                                         <div>
                                             <label for="zoom" class="block text-sm text-slate-600 mb-1">Zoom</label>
                                             <input type="number" id="zoom" name="zoom" value="{{.Zoom}}"
@@ -230,28 +229,37 @@
                             </form>
                         </div>
 
-                        <!-- Jobs table -->
-                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <!-- Location picker -->
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
                             <div class="px-6 py-4 border-b border-slate-200">
-                                <h2 class="text-base font-semibold text-slate-900">Jobs</h2>
+                                <h2 class="text-base font-semibold text-slate-900">Search Location</h2>
+                                <p class="text-sm text-slate-500">Click the map or drag the marker to set latitude, longitude and zoom.</p>
                             </div>
-                            <div class="overflow-x-auto">
-                                <table id="job-table" class="min-w-full text-sm">
-                                    <thead>
-                                        <tr class="text-left text-xs font-semibold uppercase tracking-wide text-slate-500 bg-slate-50">
-                                            <th class="px-6 py-3">Job ID</th>
-                                            <th class="px-6 py-3">Job Name</th>
-                                            <th class="px-6 py-3">Job Date</th>
-                                            <th class="px-6 py-3">Status</th>
-                                            <th class="px-6 py-3">Progress</th>
-                                            <th class="px-6 py-3">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-slate-100" hx-get="/jobs" hx-trigger="load, every 10s">
-                                        <!-- Job rows will be inserted here by HTMX -->
-                                    </tbody>
-                                </table>
-                            </div>
+                            <div id="location-picker-map" class="w-full flex-1 min-h-[520px]"></div>
+                        </div>
+                    </div>
+
+                    <!-- Jobs table -->
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="px-6 py-4 border-b border-slate-200">
+                            <h2 class="text-base font-semibold text-slate-900">Jobs</h2>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table id="job-table" class="min-w-full text-sm">
+                                <thead>
+                                    <tr class="text-left text-xs font-semibold uppercase tracking-wide text-slate-500 bg-slate-50">
+                                        <th class="px-6 py-3">Job ID</th>
+                                        <th class="px-6 py-3">Job Name</th>
+                                        <th class="px-6 py-3">Job Date</th>
+                                        <th class="px-6 py-3">Status</th>
+                                        <th class="px-6 py-3">Progress</th>
+                                        <th class="px-6 py-3">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100" hx-get="/jobs" hx-trigger="load, every 10s">
+                                    <!-- Job rows will be inserted here by HTMX -->
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -293,53 +301,39 @@
             var lonInput = document.getElementById('longitude');
             var zoomInput = document.getElementById('zoom');
 
-            var map, marker, initialized = false;
-
             function setCoords(latlng) {
                 latInput.value = latlng.lat;
                 lonInput.value = latlng.lng;
             }
 
-            function initMap() {
-                if (initialized) return;
-                initialized = true;
+            var startLat = parseFloat(latInput.value) || TEHRAN[0];
+            var startLon = parseFloat(lonInput.value) || TEHRAN[1];
+            var start = (startLat === 0 && startLon === 0) ? TEHRAN : [startLat, startLon];
 
-                var startLat = parseFloat(latInput.value) || TEHRAN[0];
-                var startLon = parseFloat(lonInput.value) || TEHRAN[1];
-                var start = (startLat === 0 && startLon === 0) ? TEHRAN : [startLat, startLon];
+            var map = L.map('location-picker-map').setView(start, parseInt(zoomInput.value, 10) || 12);
 
-                map = L.map('location-picker-map').setView(start, parseInt(zoomInput.value, 10) || 12);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors',
+            }).addTo(map);
 
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
-                    attribution: '&copy; OpenStreetMap contributors',
-                }).addTo(map);
+            var marker = L.marker(start, { draggable: true }).addTo(map);
+            setCoords(marker.getLatLng());
 
-                marker = L.marker(start, { draggable: true }).addTo(map);
+            marker.on('dragend', function () {
                 setCoords(marker.getLatLng());
-
-                marker.on('dragend', function () {
-                    setCoords(marker.getLatLng());
-                });
-
-                map.on('click', function (e) {
-                    marker.setLatLng(e.latlng);
-                    setCoords(e.latlng);
-                });
-
-                map.on('zoomend', function () {
-                    zoomInput.value = map.getZoom();
-                });
-
-                setTimeout(function () { map.invalidateSize(); }, 0);
-            }
-
-            var locationDetails = document.getElementById('location-picker-map').closest('details');
-            locationDetails.addEventListener('toggle', function () {
-                if (locationDetails.open) initMap();
             });
 
-            if (locationDetails.open) initMap();
+            map.on('click', function (e) {
+                marker.setLatLng(e.latlng);
+                setCoords(e.latlng);
+            });
+
+            map.on('zoomend', function () {
+                zoomInput.value = map.getZoom();
+            });
+
+            setTimeout(function () { map.invalidateSize(); }, 0);
         })();
     </script>
 </body>
