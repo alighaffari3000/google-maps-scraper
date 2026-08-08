@@ -76,7 +76,7 @@
                     hx-swap="beforeend"
                     hx-indicator="#spinner"
                     hx-on::before-request="document.getElementById('error-container').classList.add('hidden'); document.getElementById('error-container').innerHTML = ''"
-                    hx-on::after-request="if(!event.detail.successful) { document.getElementById('error-container').innerHTML = event.detail.xhr.responseText; document.getElementById('error-container').classList.remove('hidden'); }"
+                    hx-on::after-request="if(!event.detail.successful) { document.getElementById('error-container').innerHTML = event.detail.xhr.responseText; document.getElementById('error-container').classList.remove('hidden'); } else { document.getElementById('jobs-card').scrollIntoView({ behavior: 'smooth', block: 'start' }); }"
                 >
                     <div class="grid grid-cols-1 xl:grid-cols-[340px_1fr_320px] gap-6 items-stretch">
                         <!-- Job settings -->
@@ -145,15 +145,15 @@
                                     <div class="px-3 space-y-3">
                                         <p class="text-xs text-slate-500">By default the export includes every available column. Uncheck "All fields" to export only the columns you pick below.</p>
                                         <label for="fields-all" class="flex items-center gap-2 text-sm text-slate-700">
-                                            <input type="checkbox" id="fields-all" name="fields_all" checked
+                                            <input type="checkbox" id="fields-all" name="fields_all"
                                                    class="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                                                    onchange="document.getElementById('fields-picker').classList.toggle('hidden', this.checked)">
                                             All fields (full export)
                                         </label>
-                                        <div id="fields-picker" class="hidden grid grid-cols-2 gap-2 pt-1">
-                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="title" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Name</label>
-                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="phone" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Phone</label>
-                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="address" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Address</label>
+                                        <div id="fields-picker" class="grid grid-cols-2 gap-2 pt-1">
+                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="title" checked class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Name</label>
+                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="phone" checked class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Phone</label>
+                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="address" checked class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Address</label>
                                             <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="website" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Website</label>
                                             <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="category" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Category</label>
                                             <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="review_rating" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Rating</label>
@@ -227,7 +227,7 @@
                 </form>
 
                 <!-- Jobs table -->
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div id="jobs-card" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <div class="px-6 py-4 border-b border-slate-200">
                         <h2 class="text-base font-semibold text-slate-900">Jobs</h2>
                     </div>
