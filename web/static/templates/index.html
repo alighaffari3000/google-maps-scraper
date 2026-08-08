@@ -23,7 +23,9 @@
         };
     </script>
     <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.6/htmx.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </head>
 <body class="h-full bg-slate-50 font-sans text-slate-800 antialiased">
     <div class="flex h-full">
@@ -119,6 +121,8 @@
                                         <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.19l3.71-3.96a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06z" clip-rule="evenodd"/></svg>
                                     </summary>
                                     <div class="px-3 space-y-3">
+                                        <p class="text-xs text-slate-500">Click the map (or drag the marker) to set the search location.</p>
+                                        <div id="location-picker-map" class="w-full h-56 rounded-lg border border-slate-300"></div>
                                         <div>
                                             <label for="zoom" class="block text-sm text-slate-600 mb-1">Zoom</label>
                                             <input type="number" id="zoom" name="zoom" value="{{.Zoom}}"
@@ -279,6 +283,64 @@
         document.body.addEventListener('htmx:afterSwap', function (evt) {
             if (evt.target.closest('#job-table')) refreshStats();
         });
+
+        // Location picker map, defaults to Tehran until the user clicks
+        // or drags the marker to somewhere else.
+        (function () {
+            var TEHRAN = [35.6892, 51.3890];
+
+            var latInput = document.getElementById('latitude');
+            var lonInput = document.getElementById('longitude');
+            var zoomInput = document.getElementById('zoom');
+
+            var map, marker, initialized = false;
+
+            function setCoords(latlng) {
+                latInput.value = latlng.lat;
+                lonInput.value = latlng.lng;
+            }
+
+            function initMap() {
+                if (initialized) return;
+                initialized = true;
+
+                var startLat = parseFloat(latInput.value) || TEHRAN[0];
+                var startLon = parseFloat(lonInput.value) || TEHRAN[1];
+                var start = (startLat === 0 && startLon === 0) ? TEHRAN : [startLat, startLon];
+
+                map = L.map('location-picker-map').setView(start, parseInt(zoomInput.value, 10) || 12);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap contributors',
+                }).addTo(map);
+
+                marker = L.marker(start, { draggable: true }).addTo(map);
+                setCoords(marker.getLatLng());
+
+                marker.on('dragend', function () {
+                    setCoords(marker.getLatLng());
+                });
+
+                map.on('click', function (e) {
+                    marker.setLatLng(e.latlng);
+                    setCoords(e.latlng);
+                });
+
+                map.on('zoomend', function () {
+                    zoomInput.value = map.getZoom();
+                });
+
+                setTimeout(function () { map.invalidateSize(); }, 0);
+            }
+
+            var locationDetails = document.getElementById('location-picker-map').closest('details');
+            locationDetails.addEventListener('toggle', function () {
+                if (locationDetails.open) initMap();
+            });
+
+            if (locationDetails.open) initMap();
+        })();
     </script>
 </body>
 </html>
