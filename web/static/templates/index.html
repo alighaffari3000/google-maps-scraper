@@ -1,200 +1,284 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Google Maps Scraper</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
+                    colors: {
+                        brand: {
+                            50: '#eef2ff', 100: '#e0e7ff', 500: '#6366f1',
+                            600: '#4f46e5', 700: '#4338ca', 900: '#312e81',
+                        },
+                    },
+                },
+            },
+        };
+    </script>
     <link rel="stylesheet" href="/static/css/main.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.6/htmx.min.js"></script>
 </head>
-<body>
-    <div class="app-container">
-        <header>
-            <h1>Google Maps Scraper</h1>
-            <nav>
-                <a href="/api/docs" target="_blank" rel="noopener noreferrer">API Documentation</a>
+<body class="h-full bg-slate-50 font-sans text-slate-800 antialiased">
+    <div class="flex h-full">
+        <!-- Sidebar -->
+        <aside class="hidden md:flex md:w-64 md:flex-col md:shrink-0 bg-slate-900">
+            <div class="flex items-center gap-3 px-6 py-5 border-b border-white/10">
+                <svg class="w-7 h-7 text-brand-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C7.58 2 4 5.58 4 10c0 5.25 8 12 8 12s8-6.75 8-12c0-4.42-3.58-8-8-8z" fill="currentColor"/>
+                    <circle cx="12" cy="10" r="3" fill="#0f172a"/>
+                </svg>
+                <span class="text-white font-semibold tracking-tight">GMaps Scraper</span>
+            </div>
+            <nav class="flex-1 px-3 py-6 space-y-1">
+                <span class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium bg-white/10 text-white">
+                    <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2 2 7v11h6v-6h4v6h6V7l-8-5z"/></svg>
+                    Dashboard
+                </span>
+                <a href="/api/docs" target="_blank" rel="noopener noreferrer"
+                   class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
+                    <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path d="M4 3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7.414a1 1 0 0 0-.293-.707l-3.414-3.414A1 1 0 0 0 12.586 3H4z"/></svg>
+                    API Documentation
+                </a>
             </nav>
-        </header>
-        <main>
-            <div class="sidebar">
-                <div id="error-container" class="error-message"></div>
-                <form 
-                    hx-post="/scrape" 
-                    hx-target="#job-table tbody" 
-                    hx-swap="beforeend"
-                    hx-indicator="#spinner"
-                    hx-on::before-request="document.getElementById('error-container').innerHTML = ''"
-                    hx-on::after-request="if(!event.detail.successful) document.getElementById('error-container').innerHTML = event.detail.xhr.responseText"
-                >
-                    
-                    <fieldset>
-                        <legend>Job Details</legend>
-                        <div class="form-group">
-                            <label for="name">Job Name:</label>
-                            <input type="text" id="name" name="name" value="{{.Name}}">
-                        </div>
-                        <div class="form-group">
-                            <label for="keywords">Keywords:</label>
-                            <textarea id="keywords" name="keywords" rows="10">{{ .KeywordsString }}</textarea>
-                        </div>
-                        <div class="form-group">
-                            <label for="lang">Language:</label>
-                            <input type="text" id="lang" name="lang" value="{{.Language}}">
-                        </div>
-                    </fieldset>
-                    
-                    <details class="expandable-section">
-                        <summary>Location Settings</summary>
-                        <fieldset>
-                            <div class="form-group">
-                                <label for="zoom">Zoom:</label>
-                                <input type="number" id="zoom" name="zoom" value="{{.Zoom}}">
-                            </div>
-                            <div class="form-group">
-                                <label for="latitude">Latitude:</label>
-                                <input type="number" step="0.000000000000001" id="latitude" name="latitude" value="{{.Lat}}">
-                            </div>
-                            <div class="form-group">
-                                <label for="longitude">Longitude:</label>
-                                <input type="number" step="0.000000000000001" id="longitude" name="longitude" value="{{.Lon}}">
-                            </div>
-                        </fieldset>
-                    </details>
-                    
-                    <details class="expandable-section">
-                        <summary>Advanced Options</summary>
-                        <fieldset>
-                            <div class="form-group">
-                                <label for="fastmode">Fast Mode (BETA):</label>
-                                <input type="checkbox" id="fastmode" name="fastmode" {{if .FastMode}}checked{{end}}>
-                            </div>
-                            <div class="form-group">
-                                    <label for="radius">Radius (BETA):</label>
-                                    <input type="number" id="radius" name="radius" value="{{.Radius}}">
-                            </div>
-                            <div class="form-group">
-                                <label for="depth">Depth:</label>
-                                <input type="number" step="1" id="depth" name="depth" value="{{.Depth}}">
-                            </div>
-                            <div class="form-group checkbox">
-                                <input type="checkbox" id="email" name="email" {{if .Email}}checked{{end}}>
-                                <label for="email">Fetch Emails</label>
-                            </div>
-                            <div class="form-group">
-                                <label for="maxtime">Max job time:</label>
-                                <input type="text" id="maxtime" name="maxtime" value="{{.MaxTime}}">
-                            </div>
-                        </fieldset>
-                    </details>
-                    <details class="expandable-section">
-                        <summary>Output Fields</summary>
-                        <fieldset>
-                            <p class="text-muted"><small>By default the CSV includes every available column. Uncheck "All fields" to export only the columns you pick below.</small></p>
-                            <div class="form-group checkbox">
-                                <input type="checkbox" id="fields-all" name="fields_all" checked
-                                       onchange="document.getElementById('fields-picker').style.display = this.checked ? 'none' : 'block'">
-                                <label for="fields-all">All fields (full export)</label>
-                            </div>
-                            <div id="fields-picker" style="display:none">
-                                <div class="form-group checkbox">
-                                    <input type="checkbox" id="field-title" name="fields" value="title">
-                                    <label for="field-title">Name</label>
-                                </div>
-                                <div class="form-group checkbox">
-                                    <input type="checkbox" id="field-phone" name="fields" value="phone">
-                                    <label for="field-phone">Phone</label>
-                                </div>
-                                <div class="form-group checkbox">
-                                    <input type="checkbox" id="field-address" name="fields" value="address">
-                                    <label for="field-address">Address</label>
-                                </div>
-                                <div class="form-group checkbox">
-                                    <input type="checkbox" id="field-website" name="fields" value="website">
-                                    <label for="field-website">Website</label>
-                                </div>
-                                <div class="form-group checkbox">
-                                    <input type="checkbox" id="field-category" name="fields" value="category">
-                                    <label for="field-category">Category</label>
-                                </div>
-                                <div class="form-group checkbox">
-                                    <input type="checkbox" id="field-review_rating" name="fields" value="review_rating">
-                                    <label for="field-review_rating">Rating</label>
-                                </div>
-                                <div class="form-group checkbox">
-                                    <input type="checkbox" id="field-review_count" name="fields" value="review_count">
-                                    <label for="field-review_count">Review Count</label>
-                                </div>
-                                <div class="form-group checkbox">
-                                    <input type="checkbox" id="field-open_hours" name="fields" value="open_hours">
-                                    <label for="field-open_hours">Open Hours</label>
-                                </div>
-                                <div class="form-group checkbox">
-                                    <input type="checkbox" id="field-emails" name="fields" value="emails">
-                                    <label for="field-emails">Emails</label>
-                                </div>
-                                <div class="form-group checkbox">
-                                    <input type="checkbox" id="field-latitude" name="fields" value="latitude">
-                                    <label for="field-latitude">Latitude</label>
-                                </div>
-                                <div class="form-group checkbox">
-                                    <input type="checkbox" id="field-longitude" name="fields" value="longitude">
-                                    <label for="field-longitude">Longitude</label>
-                                </div>
-                                <div class="form-group checkbox">
-                                    <input type="checkbox" id="field-price_range" name="fields" value="price_range">
-                                    <label for="field-price_range">Price Range</label>
-                                </div>
-                            </div>
-                        </fieldset>
-                    </details>
-                    <details class="expandable-section">
-                        <summary>Proxies</summary>
-                        <fieldset>
-                            <div class="form-group">
-                                <label for="proxies">Proxies:(one per line)</label>
-                                <p class="text-muted"><small>Examples:<br>
-                                        <p>HTTPS proxy with username/password: https://username:password@myproxy.local:443<p>
-                                        <p>HTTP proxy with username/password: http://username:password@myproxy.local:443<p>
-                                        <p>SOCKS5 proxy without auth: socks5://127.0.0.1:8000</p>
-                                </p>
+            <div class="px-6 py-4 border-t border-white/10 text-xs text-slate-500">Personal build</div>
+        </aside>
 
-                                <textarea id="proxies" name="proxies" rows="5">{{.ProxiesString}}</textarea>
+        <div class="flex-1 flex flex-col min-w-0">
+            <header class="md:hidden flex items-center gap-3 px-4 py-3 bg-slate-900">
+                <span class="text-white font-semibold">GMaps Scraper</span>
+            </header>
+
+            <main class="flex-1 overflow-y-auto">
+                <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+                    <!-- Stat cards -->
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                            <p class="text-xs font-medium text-slate-500">Total Jobs</p>
+                            <p id="stat-total" class="mt-1 text-2xl font-semibold text-slate-900">0</p>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                            <p class="text-xs font-medium text-slate-500">Running</p>
+                            <p id="stat-working" class="mt-1 text-2xl font-semibold text-blue-600">0</p>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                            <p class="text-xs font-medium text-slate-500">Completed</p>
+                            <p id="stat-ok" class="mt-1 text-2xl font-semibold text-green-600">0</p>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                            <p class="text-xs font-medium text-slate-500">Failed</p>
+                            <p id="stat-failed" class="mt-1 text-2xl font-semibold text-red-600">0</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-6 items-start">
+                        <!-- Job form -->
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                            <h2 class="text-base font-semibold text-slate-900 mb-1">New Scrape Job</h2>
+                            <p class="text-sm text-slate-500 mb-4">Configure and launch a new search.</p>
+
+                            <div id="error-container" class="hidden text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4"></div>
+
+                            <form
+                                class="space-y-5"
+                                hx-post="/scrape"
+                                hx-target="#job-table tbody"
+                                hx-swap="beforeend"
+                                hx-indicator="#spinner"
+                                hx-on::before-request="document.getElementById('error-container').classList.add('hidden'); document.getElementById('error-container').innerHTML = ''"
+                                hx-on::after-request="if(!event.detail.successful) { document.getElementById('error-container').innerHTML = event.detail.xhr.responseText; document.getElementById('error-container').classList.remove('hidden'); }"
+                            >
+                                <div class="space-y-4">
+                                    <div>
+                                        <label for="name" class="block text-sm font-medium text-slate-700 mb-1">Job Name</label>
+                                        <input type="text" id="name" name="name" value="{{.Name}}"
+                                               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                    </div>
+                                    <div>
+                                        <label for="keywords" class="block text-sm font-medium text-slate-700 mb-1">Keywords</label>
+                                        <textarea id="keywords" name="keywords" rows="6"
+                                                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">{{ .KeywordsString }}</textarea>
+                                    </div>
+                                    <div>
+                                        <label for="lang" class="block text-sm font-medium text-slate-700 mb-1">Language</label>
+                                        <input type="text" id="lang" name="lang" value="{{.Language}}"
+                                               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                    </div>
+                                </div>
+
+                                <details class="group rounded-lg border border-slate-200 open:pb-4">
+                                    <summary class="cursor-pointer select-none list-none px-3 py-2 text-sm font-medium text-slate-700 flex items-center justify-between">
+                                        Location Settings
+                                        <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.19l3.71-3.96a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06z" clip-rule="evenodd"/></svg>
+                                    </summary>
+                                    <div class="px-3 space-y-3">
+                                        <div>
+                                            <label for="zoom" class="block text-sm text-slate-600 mb-1">Zoom</label>
+                                            <input type="number" id="zoom" name="zoom" value="{{.Zoom}}"
+                                                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                        </div>
+                                        <div>
+                                            <label for="latitude" class="block text-sm text-slate-600 mb-1">Latitude</label>
+                                            <input type="number" step="0.000000000000001" id="latitude" name="latitude" value="{{.Lat}}"
+                                                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                        </div>
+                                        <div>
+                                            <label for="longitude" class="block text-sm text-slate-600 mb-1">Longitude</label>
+                                            <input type="number" step="0.000000000000001" id="longitude" name="longitude" value="{{.Lon}}"
+                                                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                        </div>
+                                    </div>
+                                </details>
+
+                                <details class="group rounded-lg border border-slate-200 open:pb-4">
+                                    <summary class="cursor-pointer select-none list-none px-3 py-2 text-sm font-medium text-slate-700 flex items-center justify-between">
+                                        Advanced Options
+                                        <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.19l3.71-3.96a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06z" clip-rule="evenodd"/></svg>
+                                    </summary>
+                                    <div class="px-3 space-y-3">
+                                        <label for="fastmode" class="flex items-center gap-2 text-sm text-slate-700">
+                                            <input type="checkbox" id="fastmode" name="fastmode" {{if .FastMode}}checked{{end}}
+                                                   class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                                            Fast Mode (BETA)
+                                        </label>
+                                        <div>
+                                            <label for="radius" class="block text-sm text-slate-600 mb-1">Radius (BETA)</label>
+                                            <input type="number" id="radius" name="radius" value="{{.Radius}}"
+                                                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                        </div>
+                                        <div>
+                                            <label for="depth" class="block text-sm text-slate-600 mb-1">Depth</label>
+                                            <input type="number" step="1" id="depth" name="depth" value="{{.Depth}}"
+                                                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                        </div>
+                                        <label for="email" class="flex items-center gap-2 text-sm text-slate-700">
+                                            <input type="checkbox" id="email" name="email" {{if .Email}}checked{{end}}
+                                                   class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                                            Fetch Emails
+                                        </label>
+                                        <div>
+                                            <label for="maxtime" class="block text-sm text-slate-600 mb-1">Max job time</label>
+                                            <input type="text" id="maxtime" name="maxtime" value="{{.MaxTime}}"
+                                                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                        </div>
+                                    </div>
+                                </details>
+
+                                <details class="group rounded-lg border border-slate-200 open:pb-4">
+                                    <summary class="cursor-pointer select-none list-none px-3 py-2 text-sm font-medium text-slate-700 flex items-center justify-between">
+                                        Output Fields
+                                        <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.19l3.71-3.96a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06z" clip-rule="evenodd"/></svg>
+                                    </summary>
+                                    <div class="px-3 space-y-3">
+                                        <p class="text-xs text-slate-500">By default the export includes every available column. Uncheck "All fields" to export only the columns you pick below.</p>
+                                        <label for="fields-all" class="flex items-center gap-2 text-sm text-slate-700">
+                                            <input type="checkbox" id="fields-all" name="fields_all" checked
+                                                   class="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                                                   onchange="document.getElementById('fields-picker').classList.toggle('hidden', this.checked)">
+                                            All fields (full export)
+                                        </label>
+                                        <div id="fields-picker" class="hidden grid grid-cols-2 gap-2 pt-1">
+                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="title" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Name</label>
+                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="phone" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Phone</label>
+                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="address" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Address</label>
+                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="website" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Website</label>
+                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="category" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Category</label>
+                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="review_rating" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Rating</label>
+                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="review_count" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Review Count</label>
+                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="open_hours" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Open Hours</label>
+                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="emails" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Emails</label>
+                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="latitude" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Latitude</label>
+                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="longitude" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Longitude</label>
+                                            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="fields" value="price_range" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">Price Range</label>
+                                        </div>
+                                    </div>
+                                </details>
+
+                                <details class="group rounded-lg border border-slate-200 open:pb-4">
+                                    <summary class="cursor-pointer select-none list-none px-3 py-2 text-sm font-medium text-slate-700 flex items-center justify-between">
+                                        Proxies
+                                        <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.19l3.71-3.96a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06z" clip-rule="evenodd"/></svg>
+                                    </summary>
+                                    <div class="px-3 space-y-2">
+                                        <label for="proxies" class="block text-sm text-slate-600">Proxies (one per line)</label>
+                                        <p class="text-xs text-slate-400 leading-relaxed">
+                                            https://user:pass@myproxy.local:443<br>
+                                            http://user:pass@myproxy.local:443<br>
+                                            socks5://127.0.0.1:8000
+                                        </p>
+                                        <textarea id="proxies" name="proxies" rows="4"
+                                                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">{{.ProxiesString}}</textarea>
+                                    </div>
+                                </details>
+
+                                <button type="submit"
+                                        class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 transition-colors">
+                                    <span id="spinner" class="htmx-indicator w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+                                    Start Scraping
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Jobs table -->
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                            <div class="px-6 py-4 border-b border-slate-200">
+                                <h2 class="text-base font-semibold text-slate-900">Jobs</h2>
                             </div>
-                        </fieldset>
-                    </details>
-                    
-                    <button type="submit">Start Scraping</button>
-                </form>
-            </div>
-            <div class="content">
-                <div id="spinner" class="spinner"></div>
-                <table id="job-table">
-                    <thead>
-                        <tr>
-                            <th>Job ID</th>
-                            <th>Job Name</th>
-                            <th>Job Date</th>
-                            <th>Status</th>
-                            <th>Progress</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody hx-get="/jobs" hx-trigger="load, every 10s">
-                        <!-- Job rows will be inserted here by HTMX -->
-                    </tbody>
-                </table>
-            </div>
-        </main>
+                            <div class="overflow-x-auto">
+                                <table id="job-table" class="min-w-full text-sm">
+                                    <thead>
+                                        <tr class="text-left text-xs font-semibold uppercase tracking-wide text-slate-500 bg-slate-50">
+                                            <th class="px-6 py-3">Job ID</th>
+                                            <th class="px-6 py-3">Job Name</th>
+                                            <th class="px-6 py-3">Job Date</th>
+                                            <th class="px-6 py-3">Status</th>
+                                            <th class="px-6 py-3">Progress</th>
+                                            <th class="px-6 py-3">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100" hx-get="/jobs" hx-trigger="load, every 10s">
+                                        <!-- Job rows will be inserted here by HTMX -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
     </div>
 
     <div id="map-modal-container"></div>
-<script>
-function hideSponsor() {
-    const sponsorSection = document.getElementById('sponsor-section');
-    if (sponsorSection) {
-        sponsorSection.style.display = 'none';
-    }
-}
-</script>
+    <script>
+        function refreshStats() {
+            var rows = document.querySelectorAll('#job-table tbody tr');
+            var counts = { total: rows.length, working: 0, ok: 0, failed: 0 };
+
+            rows.forEach(function (row) {
+                var badge = row.querySelector('.status-indicator');
+                if (!badge) return;
+                var status = badge.textContent.trim().toLowerCase();
+                if (status === 'working' || status === 'pending') counts.working++;
+                else if (status === 'ok') counts.ok++;
+                else if (status === 'failed' || status === 'error') counts.failed++;
+            });
+
+            document.getElementById('stat-total').textContent = counts.total;
+            document.getElementById('stat-working').textContent = counts.working;
+            document.getElementById('stat-ok').textContent = counts.ok;
+            document.getElementById('stat-failed').textContent = counts.failed;
+        }
+
+        document.body.addEventListener('htmx:afterSwap', function (evt) {
+            if (evt.target.closest('#job-table')) refreshStats();
+        });
+    </script>
 </body>
 </html>
