@@ -239,7 +239,7 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 		Name:     "",
 		MaxTime:  "10m",
 		Keywords: []string{},
-		Language: "en",
+		Language: "fa",
 		Zoom:     15,
 		FastMode: false,
 		Radius:   10000,
