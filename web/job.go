@@ -73,6 +73,11 @@ type JobData struct {
 	ExtraReviews bool          `json:"extra_reviews"`
 	MaxTime      time.Duration `json:"max_time"`
 	Proxies      []string      `json:"proxies"`
+
+	// PlacesFound and PlacesCompleted are runtime progress counters,
+	// updated periodically while the job is working so the UI can show progress.
+	PlacesFound     int `json:"places_found"`
+	PlacesCompleted int `json:"places_completed"`
 }
 
 func (d *JobData) Validate() error {

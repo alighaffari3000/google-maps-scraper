@@ -6,6 +6,15 @@
         <span class="status-indicator status-{{.Status}}">{{.Status}}</span>
     </td>
     <td>
+        {{ if eq .Status "working" }}
+            {{ if gt .Data.PlacesFound 0 }}
+                {{.Data.PlacesCompleted}} / {{.Data.PlacesFound}}
+            {{ else }}
+                searching&hellip;
+            {{ end }}
+        {{ end }}
+    </td>
+    <td>
         {{ if eq .Status "ok" }}
             <a href="/download?id={{.ID}}" download class="button download-button">Download</a>
         {{ end }}

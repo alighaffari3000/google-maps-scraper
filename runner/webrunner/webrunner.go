@@ -137,6 +137,34 @@ func (w *webrunner) work(ctx context.Context) error {
 	}
 }
 
+// trackProgress periodically copies the exit monitor's counters onto the job
+// and persists them, so the web UI (which polls /jobs) can show live progress.
+// It stops on its own once the job's context is done.
+func (w *webrunner) trackProgress(ctx context.Context, job *web.Job, exitMonitor exiter.Exiter) {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			found, completed := exitMonitor.Progress()
+
+			if found == job.Data.PlacesFound && completed == job.Data.PlacesCompleted {
+				continue
+			}
+
+			job.Data.PlacesFound = found
+			job.Data.PlacesCompleted = completed
+
+			if err := w.svc.Update(ctx, job); err != nil {
+				log.Printf("failed to update job progress for %s: %v", job.ID, err)
+			}
+		}
+	}
+}
+
 func (w *webrunner) scrapeJob(ctx context.Context, job *web.Job) error {
 	job.Status = web.StatusWorking
 
@@ -238,6 +266,7 @@ func (w *webrunner) scrapeJob(ctx context.Context, job *web.Job) error {
 		exitMonitor.SetCancelFunc(cancel)
 
 		go exitMonitor.Run(mateCtx)
+		go w.trackProgress(mateCtx, job, exitMonitor)
 
 		err = mate.Start(mateCtx, seedJobs...)
 		if err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {

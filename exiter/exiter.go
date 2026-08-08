@@ -11,6 +11,7 @@ type Exiter interface {
 	IncrSeedCompleted(int)
 	IncrPlacesFound(int)
 	IncrPlacesCompleted(int)
+	Progress() (placesFound, placesCompleted int)
 	Run(context.Context)
 }
 
@@ -79,6 +80,13 @@ func (e *exiter) IncrPlacesCompleted(val int) {
 		default:
 		}
 	}
+}
+
+func (e *exiter) Progress() (placesFound, placesCompleted int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	return e.placesFound, e.placesCompleted
 }
 
 func (e *exiter) Run(ctx context.Context) {
