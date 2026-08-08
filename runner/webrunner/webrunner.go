@@ -360,9 +360,15 @@ func defaultSetupMate(cfg *runner.Config) func(context.Context, io.Writer, *web.
 
 		log.Printf("job %s has proxy: %v", job.ID, hasProxy)
 
-		csvWriter := csvwriter.NewCsvWriter(csv.NewWriter(writer))
+		var resultWriter scrapemate.ResultWriter
 
-		writers := []scrapemate.ResultWriter{csvWriter}
+		if len(job.Data.Fields) > 0 {
+			resultWriter = newFilteredCsvWriter(csv.NewWriter(writer), job.Data.Fields)
+		} else {
+			resultWriter = csvwriter.NewCsvWriter(csv.NewWriter(writer))
+		}
+
+		writers := []scrapemate.ResultWriter{resultWriter}
 
 		matecfg, err := scrapemateapp.NewConfig(
 			writers,

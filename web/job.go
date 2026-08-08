@@ -78,6 +78,11 @@ type JobData struct {
 	// updated periodically while the job is working so the UI can show progress.
 	PlacesFound     int `json:"places_found"`
 	PlacesCompleted int `json:"places_completed"`
+
+	// Fields, when non-empty, restricts the output CSV to these column names
+	// (matching gmaps.Entry.CsvHeaders()). Empty means "all columns", which
+	// keeps existing jobs and API/CLI callers unaffected.
+	Fields []string `json:"fields"`
 }
 
 func (d *JobData) Validate() error {

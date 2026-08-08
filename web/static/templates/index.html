@@ -109,6 +109,67 @@
                         </fieldset>
                     </details>
                     <details class="expandable-section">
+                        <summary>Output Fields</summary>
+                        <fieldset>
+                            <p class="text-muted"><small>By default the CSV includes every available column. Uncheck "All fields" to export only the columns you pick below.</small></p>
+                            <div class="form-group checkbox">
+                                <input type="checkbox" id="fields-all" name="fields_all" checked
+                                       onchange="document.getElementById('fields-picker').style.display = this.checked ? 'none' : 'block'">
+                                <label for="fields-all">All fields (full export)</label>
+                            </div>
+                            <div id="fields-picker" style="display:none">
+                                <div class="form-group checkbox">
+                                    <input type="checkbox" id="field-title" name="fields" value="title">
+                                    <label for="field-title">Name</label>
+                                </div>
+                                <div class="form-group checkbox">
+                                    <input type="checkbox" id="field-phone" name="fields" value="phone">
+                                    <label for="field-phone">Phone</label>
+                                </div>
+                                <div class="form-group checkbox">
+                                    <input type="checkbox" id="field-address" name="fields" value="address">
+                                    <label for="field-address">Address</label>
+                                </div>
+                                <div class="form-group checkbox">
+                                    <input type="checkbox" id="field-website" name="fields" value="website">
+                                    <label for="field-website">Website</label>
+                                </div>
+                                <div class="form-group checkbox">
+                                    <input type="checkbox" id="field-category" name="fields" value="category">
+                                    <label for="field-category">Category</label>
+                                </div>
+                                <div class="form-group checkbox">
+                                    <input type="checkbox" id="field-review_rating" name="fields" value="review_rating">
+                                    <label for="field-review_rating">Rating</label>
+                                </div>
+                                <div class="form-group checkbox">
+                                    <input type="checkbox" id="field-review_count" name="fields" value="review_count">
+                                    <label for="field-review_count">Review Count</label>
+                                </div>
+                                <div class="form-group checkbox">
+                                    <input type="checkbox" id="field-open_hours" name="fields" value="open_hours">
+                                    <label for="field-open_hours">Open Hours</label>
+                                </div>
+                                <div class="form-group checkbox">
+                                    <input type="checkbox" id="field-emails" name="fields" value="emails">
+                                    <label for="field-emails">Emails</label>
+                                </div>
+                                <div class="form-group checkbox">
+                                    <input type="checkbox" id="field-latitude" name="fields" value="latitude">
+                                    <label for="field-latitude">Latitude</label>
+                                </div>
+                                <div class="form-group checkbox">
+                                    <input type="checkbox" id="field-longitude" name="fields" value="longitude">
+                                    <label for="field-longitude">Longitude</label>
+                                </div>
+                                <div class="form-group checkbox">
+                                    <input type="checkbox" id="field-price_range" name="fields" value="price_range">
+                                    <label for="field-price_range">Price Range</label>
+                                </div>
+                            </div>
+                        </fieldset>
+                    </details>
+                    <details class="expandable-section">
                         <summary>Proxies</summary>
                         <fieldset>
                             <div class="form-group">

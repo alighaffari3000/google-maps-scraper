@@ -340,6 +340,16 @@ func (s *Server) scrape(w http.ResponseWriter, r *http.Request) {
 
 	newJob.Data.Email = r.Form.Get("email") == "on"
 
+	if r.Form.Get("fields_all") != "on" {
+		newJob.Data.Fields = r.Form["fields"]
+
+		if len(newJob.Data.Fields) == 0 {
+			http.Error(w, "select at least one output field, or check \"All fields\"", http.StatusUnprocessableEntity)
+
+			return
+		}
+	}
+
 	proxies := strings.Split(r.Form.Get("proxies"), "\n")
 	if len(proxies) > 0 {
 		for _, p := range proxies {
