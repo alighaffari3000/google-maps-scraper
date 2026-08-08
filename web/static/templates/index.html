@@ -28,75 +28,63 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </head>
 <body class="h-full bg-slate-50 font-sans text-slate-800 antialiased">
-    <div class="flex h-full">
-        <!-- Sidebar -->
-        <aside class="hidden md:flex md:w-64 md:flex-col md:shrink-0 bg-slate-900">
-            <div class="flex items-center gap-3 px-6 py-5 border-b border-white/10">
-                <svg class="w-7 h-7 text-brand-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <div class="flex flex-col h-full">
+        <!-- Top navbar -->
+        <header class="flex items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 py-3 bg-slate-900 shrink-0">
+            <div class="flex items-center gap-3">
+                <svg class="w-6 h-6 text-brand-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 2C7.58 2 4 5.58 4 10c0 5.25 8 12 8 12s8-6.75 8-12c0-4.42-3.58-8-8-8z" fill="currentColor"/>
                     <circle cx="12" cy="10" r="3" fill="#0f172a"/>
                 </svg>
                 <span class="text-white font-semibold tracking-tight">GMaps Scraper</span>
             </div>
-            <nav class="flex-1 px-3 py-6 space-y-1">
-                <span class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium bg-white/10 text-white">
-                    <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2 2 7v11h6v-6h4v6h6V7l-8-5z"/></svg>
-                    Dashboard
-                </span>
-                <a href="/api/docs" target="_blank" rel="noopener noreferrer"
-                   class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
-                    <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path d="M4 3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7.414a1 1 0 0 0-.293-.707l-3.414-3.414A1 1 0 0 0 12.586 3H4z"/></svg>
-                    API Documentation
-                </a>
-            </nav>
-            <div class="px-6 py-4 border-t border-white/10 text-xs text-slate-500">Personal build</div>
-        </aside>
+            <a href="/api/docs" target="_blank" rel="noopener noreferrer"
+               class="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-white/10 hover:text-white transition-colors">
+                <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path d="M4 3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7.414a1 1 0 0 0-.293-.707l-3.414-3.414A1 1 0 0 0 12.586 3H4z"/></svg>
+                API Documentation
+            </a>
+        </header>
 
-        <div class="flex-1 flex flex-col min-w-0">
-            <header class="md:hidden flex items-center gap-3 px-4 py-3 bg-slate-900">
-                <span class="text-white font-semibold">GMaps Scraper</span>
-            </header>
+        <main class="flex-1 overflow-y-auto">
+            <div class="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
-            <main class="flex-1 overflow-y-auto">
-                <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-
-                    <!-- Stat cards -->
-                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                            <p class="text-xs font-medium text-slate-500">Total Jobs</p>
-                            <p id="stat-total" class="mt-1 text-2xl font-semibold text-slate-900">0</p>
-                        </div>
-                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                            <p class="text-xs font-medium text-slate-500">Running</p>
-                            <p id="stat-working" class="mt-1 text-2xl font-semibold text-blue-600">0</p>
-                        </div>
-                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                            <p class="text-xs font-medium text-slate-500">Completed</p>
-                            <p id="stat-ok" class="mt-1 text-2xl font-semibold text-green-600">0</p>
-                        </div>
-                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                            <p class="text-xs font-medium text-slate-500">Failed</p>
-                            <p id="stat-failed" class="mt-1 text-2xl font-semibold text-red-600">0</p>
-                        </div>
+                <!-- Stat cards -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                        <p class="text-xs font-medium text-slate-500">Total Jobs</p>
+                        <p id="stat-total" class="mt-1 text-2xl font-semibold text-slate-900">0</p>
                     </div>
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                        <p class="text-xs font-medium text-slate-500">Running</p>
+                        <p id="stat-working" class="mt-1 text-2xl font-semibold text-blue-600">0</p>
+                    </div>
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                        <p class="text-xs font-medium text-slate-500">Completed</p>
+                        <p id="stat-ok" class="mt-1 text-2xl font-semibold text-green-600">0</p>
+                    </div>
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                        <p class="text-xs font-medium text-slate-500">Failed</p>
+                        <p id="stat-failed" class="mt-1 text-2xl font-semibold text-red-600">0</p>
+                    </div>
+                </div>
 
-                    <div class="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-6 items-start">
-                        <!-- Job form -->
-                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                <div id="error-container" class="hidden text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2"></div>
+
+                <form
+                    hx-post="/scrape"
+                    hx-target="#job-table tbody"
+                    hx-swap="beforeend"
+                    hx-indicator="#spinner"
+                    hx-on::before-request="document.getElementById('error-container').classList.add('hidden'); document.getElementById('error-container').innerHTML = ''"
+                    hx-on::after-request="if(!event.detail.successful) { document.getElementById('error-container').innerHTML = event.detail.xhr.responseText; document.getElementById('error-container').classList.remove('hidden'); }"
+                >
+                    <div class="grid grid-cols-1 xl:grid-cols-[340px_1fr_320px] gap-6 items-stretch">
+                        <!-- Job settings -->
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col">
                             <h2 class="text-base font-semibold text-slate-900 mb-1">New Scrape Job</h2>
                             <p class="text-sm text-slate-500 mb-4">Configure and launch a new search.</p>
 
-                            <div id="error-container" class="hidden text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4"></div>
-
-                            <form
-                                class="space-y-5"
-                                hx-post="/scrape"
-                                hx-target="#job-table tbody"
-                                hx-swap="beforeend"
-                                hx-indicator="#spinner"
-                                hx-on::before-request="document.getElementById('error-container').classList.add('hidden'); document.getElementById('error-container').innerHTML = ''"
-                                hx-on::after-request="if(!event.detail.successful) { document.getElementById('error-container').innerHTML = event.detail.xhr.responseText; document.getElementById('error-container').classList.remove('hidden'); }"
-                            >
+                            <div class="space-y-5">
                                 <div class="space-y-4">
                                     <div>
                                         <label for="name" class="block text-sm font-medium text-slate-700 mb-1">Job Name</label>
@@ -112,30 +100,6 @@
                                         <label for="lang" class="block text-sm font-medium text-slate-700 mb-1">Language</label>
                                         <input type="text" id="lang" name="lang" value="{{.Language}}"
                                                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
-                                    </div>
-                                </div>
-
-                                <div class="rounded-lg border border-slate-200">
-                                    <div class="px-3 py-2 text-sm font-medium text-slate-700 border-b border-slate-200">
-                                        Location Settings
-                                    </div>
-                                    <div class="px-3 py-3 space-y-3">
-                                        <p class="text-xs text-slate-500">Use the map in the middle of the page to set the search location, or enter coordinates manually below.</p>
-                                        <div>
-                                            <label for="zoom" class="block text-sm text-slate-600 mb-1">Zoom</label>
-                                            <input type="number" id="zoom" name="zoom" value="{{.Zoom}}"
-                                                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
-                                        </div>
-                                        <div>
-                                            <label for="latitude" class="block text-sm text-slate-600 mb-1">Latitude</label>
-                                            <input type="number" step="0.000000000000001" id="latitude" name="latitude" value="{{.Lat}}"
-                                                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
-                                        </div>
-                                        <div>
-                                            <label for="longitude" class="block text-sm text-slate-600 mb-1">Longitude</label>
-                                            <input type="number" step="0.000000000000001" id="longitude" name="longitude" value="{{.Lon}}"
-                                                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
-                                        </div>
                                     </div>
                                 </div>
 
@@ -219,13 +183,13 @@
                                                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">{{.ProxiesString}}</textarea>
                                     </div>
                                 </details>
+                            </div>
 
-                                <button type="submit"
-                                        class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 transition-colors">
-                                    <span id="spinner" class="htmx-indicator w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
-                                    Start Scraping
-                                </button>
-                            </form>
+                            <button type="submit"
+                                    class="mt-5 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 transition-colors">
+                                <span id="spinner" class="htmx-indicator w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+                                Start Scraping
+                            </button>
                         </div>
 
                         <!-- Location picker -->
@@ -234,36 +198,59 @@
                                 <h2 class="text-base font-semibold text-slate-900">Search Location</h2>
                                 <p class="text-sm text-slate-500">Click the map or drag the marker to set latitude, longitude and zoom.</p>
                             </div>
-                            <div id="location-picker-map" class="w-full flex-1 min-h-[520px]"></div>
+                            <div id="location-picker-map" class="w-full flex-1 min-h-[560px]"></div>
+                        </div>
+
+                        <!-- Location settings -->
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col">
+                            <h2 class="text-base font-semibold text-slate-900 mb-1">Location Settings</h2>
+                            <p class="text-sm text-slate-500 mb-4">Set by the map, or enter coordinates manually.</p>
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="zoom" class="block text-sm text-slate-600 mb-1">Zoom</label>
+                                    <input type="number" id="zoom" name="zoom" value="{{.Zoom}}"
+                                           class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                </div>
+                                <div>
+                                    <label for="latitude" class="block text-sm text-slate-600 mb-1">Latitude</label>
+                                    <input type="number" step="0.000000000000001" id="latitude" name="latitude" value="{{.Lat}}"
+                                           class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                </div>
+                                <div>
+                                    <label for="longitude" class="block text-sm text-slate-600 mb-1">Longitude</label>
+                                    <input type="number" step="0.000000000000001" id="longitude" name="longitude" value="{{.Lon}}"
+                                           class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                </div>
+                            </div>
                         </div>
                     </div>
+                </form>
 
-                    <!-- Jobs table -->
-                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div class="px-6 py-4 border-b border-slate-200">
-                            <h2 class="text-base font-semibold text-slate-900">Jobs</h2>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table id="job-table" class="min-w-full text-sm">
-                                <thead>
-                                    <tr class="text-left text-xs font-semibold uppercase tracking-wide text-slate-500 bg-slate-50">
-                                        <th class="px-6 py-3">Job ID</th>
-                                        <th class="px-6 py-3">Job Name</th>
-                                        <th class="px-6 py-3">Job Date</th>
-                                        <th class="px-6 py-3">Status</th>
-                                        <th class="px-6 py-3">Progress</th>
-                                        <th class="px-6 py-3">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-100" hx-get="/jobs" hx-trigger="load, every 10s">
-                                    <!-- Job rows will be inserted here by HTMX -->
-                                </tbody>
-                            </table>
-                        </div>
+                <!-- Jobs table -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-slate-200">
+                        <h2 class="text-base font-semibold text-slate-900">Jobs</h2>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table id="job-table" class="min-w-full text-sm">
+                            <thead>
+                                <tr class="text-left text-xs font-semibold uppercase tracking-wide text-slate-500 bg-slate-50">
+                                    <th class="px-6 py-3">Job ID</th>
+                                    <th class="px-6 py-3">Job Name</th>
+                                    <th class="px-6 py-3">Job Date</th>
+                                    <th class="px-6 py-3">Status</th>
+                                    <th class="px-6 py-3">Progress</th>
+                                    <th class="px-6 py-3">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100" hx-get="/jobs" hx-trigger="load, every 10s">
+                                <!-- Job rows will be inserted here by HTMX -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-            </main>
-        </div>
+            </div>
+        </main>
     </div>
 
     <div id="map-modal-container"></div>
