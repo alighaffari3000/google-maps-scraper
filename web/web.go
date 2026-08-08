@@ -514,6 +514,10 @@ func (s *Server) apiScrape(w http.ResponseWriter, r *http.Request) {
 	// convert to seconds
 	newJob.Data.MaxTime *= time.Second
 
+	// Progress counters are owned by the runner, not by the caller.
+	newJob.Data.PlacesFound = 0
+	newJob.Data.PlacesCompleted = 0
+
 	err = newJob.Validate()
 	if err != nil {
 		ans := apiError{

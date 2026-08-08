@@ -29,7 +29,16 @@ type webrunner struct {
 	svc       *web.Service
 	cfg       *runner.Config
 	setupMate func(context.Context, io.Writer, *web.Job) (mateRunner, error)
+
+	// newExiter builds the per-job exit monitor. Nil means exiter.New.
+	newExiter func() exiter.Exiter
+
+	// progressInterval is how often job progress is persisted while scraping.
+	// Zero means defaultProgressInterval.
+	progressInterval time.Duration
 }
+
+const defaultProgressInterval = 2 * time.Second
 
 type mateRunner interface {
 	Start(context.Context, ...scrapemate.IJob) error
@@ -139,9 +148,15 @@ func (w *webrunner) work(ctx context.Context) error {
 
 // trackProgress periodically copies the exit monitor's counters onto the job
 // and persists them, so the web UI (which polls /jobs) can show live progress.
-// It stops on its own once the job's context is done.
+// It returns once ctx is done. It writes job without synchronisation, so the
+// caller must not touch job until this has returned.
 func (w *webrunner) trackProgress(ctx context.Context, job *web.Job, exitMonitor exiter.Exiter) {
-	ticker := time.NewTicker(2 * time.Second)
+	interval := w.progressInterval
+	if interval <= 0 {
+		interval = defaultProgressInterval
+	}
+
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -215,7 +230,13 @@ func (w *webrunner) scrapeJob(ctx context.Context, job *web.Job) error {
 	}
 
 	dedup := deduper.New()
-	exitMonitor := exiter.New()
+
+	newExiter := w.newExiter
+	if newExiter == nil {
+		newExiter = exiter.New
+	}
+
+	exitMonitor := newExiter()
 
 	seedJobs, err := runner.CreateSeedJobs(
 		job.Data.FastMode,
@@ -266,12 +287,25 @@ func (w *webrunner) scrapeJob(ctx context.Context, job *web.Job) error {
 		exitMonitor.SetCancelFunc(cancel)
 
 		go exitMonitor.Run(mateCtx)
-		go w.trackProgress(mateCtx, job, exitMonitor)
+
+		// The progress tracker owns job for as long as it runs, so cancel()
+		// alone is not enough to touch job again: it only signals, and a tick
+		// already in flight would persist the stale "working" status over the
+		// final one. Wait for the tracker to exit before writing job again.
+		progressDone := make(chan struct{})
+
+		go func() {
+			defer close(progressDone)
+
+			w.trackProgress(mateCtx, job, exitMonitor)
+		}()
 
 		err = mate.Start(mateCtx, seedJobs...)
-		if err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
-			cancel()
 
+		cancel()
+		<-progressDone
+
+		if err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 			err2 := w.svc.Update(ctx, job)
 			if err2 != nil {
 				log.Printf("failed to update job status: %v", err2)
@@ -279,8 +313,6 @@ func (w *webrunner) scrapeJob(ctx context.Context, job *web.Job) error {
 
 			return err
 		}
-
-		cancel()
 	}
 
 	job.Status = web.StatusOK
