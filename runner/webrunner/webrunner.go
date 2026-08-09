@@ -206,7 +206,7 @@ func (w *webrunner) scrapeJob(ctx context.Context, job *web.Job) error {
 
 		xlsxPath := strings.TrimSuffix(outpath, ".csv") + ".xlsx"
 
-		if err := exportXLSX(outpath, xlsxPath); err != nil {
+		if err := exportXLSX(outpath, xlsxPath, job.Data.Fields); err != nil {
 			log.Printf("failed to export xlsx for job %s: %v", job.ID, err)
 		}
 	}()
@@ -321,6 +321,8 @@ func (w *webrunner) scrapeJob(ctx context.Context, job *web.Job) error {
 		<-progressDone
 
 		if err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+			job.Status = web.StatusFailed
+
 			err2 := w.svc.Update(ctx, job)
 			if err2 != nil {
 				log.Printf("failed to update job status: %v", err2)
@@ -328,6 +330,24 @@ func (w *webrunner) scrapeJob(ctx context.Context, job *web.Job) error {
 
 			return err
 		}
+
+		// mate.Start reports the run, not the individual searches: a seed job
+		// that died (Google redirecting mid-scroll, a blocked request) leaves
+		// it nil. Reporting such a run as ok hands the user an empty file and
+		// a green status, so only failed seeds with nothing to show for them
+		// mark the job failed — a search that genuinely matched nothing still
+		// succeeded.
+		found, _ := exitMonitor.Progress()
+
+		if failures := exitMonitor.SeedFailures(); failures > 0 && found == 0 {
+			log.Printf("job %s: all %d seed job(s) failed, no places found", job.ID, failures)
+
+			job.Status = web.StatusFailed
+
+			return w.svc.Update(ctx, job)
+		}
+
+		job.Data.PlacesFound, job.Data.PlacesCompleted = exitMonitor.Progress()
 	}
 
 	job.Status = web.StatusOK
@@ -375,15 +395,11 @@ func defaultSetupMate(cfg *runner.Config) func(context.Context, io.Writer, *web.
 
 		log.Printf("job %s has proxy: %v", job.ID, hasProxy)
 
-		var resultWriter scrapemate.ResultWriter
-
-		if len(job.Data.Fields) > 0 {
-			resultWriter = newFilteredCsvWriter(csv.NewWriter(writer), job.Data.Fields)
-		} else {
-			resultWriter = csvwriter.NewCsvWriter(csv.NewWriter(writer))
-		}
-
-		writers := []scrapemate.ResultWriter{resultWriter}
+		// The CSV always holds every column: the "View" map depends on
+		// latitude/longitude regardless of what the user chose to export,
+		// and exportXLSX applies job.Data.Fields when it converts this file
+		// to the .xlsx the user actually downloads.
+		writers := []scrapemate.ResultWriter{csvwriter.NewCsvWriter(csv.NewWriter(writer))}
 
 		matecfg, err := scrapemateapp.NewConfig(
 			writers,

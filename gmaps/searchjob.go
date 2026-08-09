@@ -88,6 +88,7 @@ func (j *SearchJob) Process(_ context.Context, resp *scrapemate.Response) (any, 
 
 	if resp.Error != nil {
 		if j.ExitMonitor != nil {
+			j.ExitMonitor.IncrSeedFailed(1)
 			j.ExitMonitor.IncrSeedCompleted(1)
 		}
 
@@ -97,6 +98,7 @@ func (j *SearchJob) Process(_ context.Context, resp *scrapemate.Response) (any, 
 	body := removeFirstLine(resp.Body)
 	if len(body) == 0 {
 		if j.ExitMonitor != nil {
+			j.ExitMonitor.IncrSeedFailed(1)
 			j.ExitMonitor.IncrSeedCompleted(1)
 		}
 
@@ -106,6 +108,7 @@ func (j *SearchJob) Process(_ context.Context, resp *scrapemate.Response) (any, 
 	entries, err := ParseSearchResults(body)
 	if err != nil {
 		if j.ExitMonitor != nil {
+			j.ExitMonitor.IncrSeedFailed(1)
 			j.ExitMonitor.IncrSeedCompleted(1)
 		}
 

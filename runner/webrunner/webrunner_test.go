@@ -130,6 +130,101 @@ func TestScrapeJobWaitsForProgressTrackerBeforeFinishing(t *testing.T) {
 	}
 }
 
+// scrapemate reports the run as a whole, so a seed job that died mid-scrape
+// still leaves mate.Start returning nil. Marking such a job "ok" hands the user
+// an empty export with a green status and no hint that anything went wrong.
+func TestScrapeJobFailsWhenAllSeedsFailedAndNothingFound(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		exiter   *stubExiter
+		expected string
+	}{
+		{
+			name:     "seeds failed with no results",
+			exiter:   &stubExiter{failures: 1},
+			expected: web.StatusFailed,
+		},
+		{
+			name:     "search genuinely matched nothing",
+			exiter:   &stubExiter{},
+			expected: web.StatusOK,
+		},
+		{
+			name:     "some seeds failed but places were still found",
+			exiter:   &stubExiter{failures: 1, found: 12, completed: 12},
+			expected: web.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			svc := web.NewService(&memoryJobRepo{}, t.TempDir())
+			job := web.Job{
+				ID:     "job-" + tt.name,
+				Name:   "companies",
+				Date:   time.Now().UTC(),
+				Status: web.StatusPending,
+				Data: web.JobData{
+					Keywords: []string{"companies"},
+					Lang:     "fa",
+					Zoom:     15,
+					Lat:      "35.73",
+					Lon:      "51.43",
+					Depth:    10,
+					MaxTime:  time.Minute,
+				},
+			}
+
+			if err := svc.Create(context.Background(), &job); err != nil {
+				t.Fatalf("create job: %v", err)
+			}
+
+			w := &webrunner{
+				svc:       svc,
+				cfg:       &runner.Config{DataFolder: t.TempDir(), Concurrency: 1},
+				newExiter: func() exiter.Exiter { return tt.exiter },
+				setupMate: func(_ context.Context, _ io.Writer, _ *web.Job) (mateRunner, error) {
+					return fakeMate{}, nil
+				},
+			}
+
+			if err := w.scrapeJob(context.Background(), &job); err != nil {
+				t.Fatalf("scrape job: %v", err)
+			}
+
+			got, err := svc.Get(context.Background(), job.ID)
+			if err != nil {
+				t.Fatalf("get job: %v", err)
+			}
+
+			if got.Status != tt.expected {
+				t.Errorf("final status = %q, want %q", got.Status, tt.expected)
+			}
+		})
+	}
+}
+
+// stubExiter reports fixed progress and failure counts.
+type stubExiter struct {
+	found     int
+	completed int
+	failures  int
+}
+
+func (e *stubExiter) SetSeedCount(int)                 {}
+func (e *stubExiter) SetCancelFunc(context.CancelFunc) {}
+func (e *stubExiter) IncrSeedCompleted(int)            {}
+func (e *stubExiter) IncrSeedFailed(int)               {}
+func (e *stubExiter) IncrPlacesFound(int)              {}
+func (e *stubExiter) IncrPlacesCompleted(int)          {}
+func (e *stubExiter) SeedFailures() int                { return e.failures }
+func (e *stubExiter) Progress() (int, int)             { return e.found, e.completed }
+func (e *stubExiter) Run(ctx context.Context)          { <-ctx.Done() }
+
 type fakeMate struct {
 	onClose    func()
 	startDelay time.Duration
@@ -161,8 +256,10 @@ type countingExiter struct {
 func (e *countingExiter) SetSeedCount(int)                 {}
 func (e *countingExiter) SetCancelFunc(context.CancelFunc) {}
 func (e *countingExiter) IncrSeedCompleted(int)            {}
+func (e *countingExiter) IncrSeedFailed(int)               {}
 func (e *countingExiter) IncrPlacesFound(int)              {}
 func (e *countingExiter) IncrPlacesCompleted(int)          {}
+func (e *countingExiter) SeedFailures() int                { return 0 }
 func (e *countingExiter) Run(ctx context.Context)          { <-ctx.Done() }
 
 func (e *countingExiter) Progress() (int, int) {

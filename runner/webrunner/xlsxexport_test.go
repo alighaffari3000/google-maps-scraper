@@ -24,7 +24,7 @@ func TestExportXLSXRoundTripsPersianText(t *testing.T) {
 		t.Fatalf("write csv: %v", err)
 	}
 
-	if err := exportXLSX(csvPath, xlsxPath); err != nil {
+	if err := exportXLSX(csvPath, xlsxPath, nil); err != nil {
 		t.Fatalf("exportXLSX: %v", err)
 	}
 
@@ -72,8 +72,90 @@ func TestExportXLSXMissingSourceFile(t *testing.T) {
 
 	dir := t.TempDir()
 
-	err := exportXLSX(filepath.Join(dir, "does-not-exist.csv"), filepath.Join(dir, "out.xlsx"))
+	err := exportXLSX(filepath.Join(dir, "does-not-exist.csv"), filepath.Join(dir, "out.xlsx"), nil)
 	if err == nil {
 		t.Fatal("expected error for missing source CSV")
+	}
+}
+
+func TestExportXLSXFiltersColumns(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	csvPath := filepath.Join(dir, "in.csv")
+	xlsxPath := filepath.Join(dir, "out.xlsx")
+
+	csvContent := "title,phone,address,latitude,longitude\n" +
+		"Coffee Place,555-1234,1 Main St,37.7749,-122.4194\n"
+
+	if err := os.WriteFile(csvPath, []byte(csvContent), 0o600); err != nil {
+		t.Fatalf("write csv: %v", err)
+	}
+
+	if err := exportXLSX(csvPath, xlsxPath, []string{"title", "phone", "address"}); err != nil {
+		t.Fatalf("exportXLSX: %v", err)
+	}
+
+	wb, err := excelize.OpenFile(xlsxPath)
+	if err != nil {
+		t.Fatalf("open xlsx: %v", err)
+	}
+	defer wb.Close()
+
+	rows, err := wb.GetRows(xlsxSheetName)
+	if err != nil {
+		t.Fatalf("get rows: %v", err)
+	}
+
+	want := [][]string{
+		{"title", "phone", "address"},
+		{"Coffee Place", "555-1234", "1 Main St"},
+	}
+
+	if len(rows) != len(want) {
+		t.Fatalf("got %d rows, want %d: %+v", len(rows), len(want), rows)
+	}
+
+	for i, row := range rows {
+		for j, cell := range row {
+			if cell != want[i][j] {
+				t.Fatalf("row %d col %d = %q, want %q", i, j, cell, want[i][j])
+			}
+		}
+	}
+}
+
+func TestExportXLSXUnknownFieldsFallBackToAllColumns(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	csvPath := filepath.Join(dir, "in.csv")
+	xlsxPath := filepath.Join(dir, "out.xlsx")
+
+	csvContent := "title,phone\nCoffee Place,555-1234\n"
+
+	if err := os.WriteFile(csvPath, []byte(csvContent), 0o600); err != nil {
+		t.Fatalf("write csv: %v", err)
+	}
+
+	if err := exportXLSX(csvPath, xlsxPath, []string{"not-a-real-column"}); err != nil {
+		t.Fatalf("exportXLSX: %v", err)
+	}
+
+	wb, err := excelize.OpenFile(xlsxPath)
+	if err != nil {
+		t.Fatalf("open xlsx: %v", err)
+	}
+	defer wb.Close()
+
+	rows, err := wb.GetRows(xlsxSheetName)
+	if err != nil {
+		t.Fatalf("get rows: %v", err)
+	}
+
+	want := [][]string{{"title", "phone"}, {"Coffee Place", "555-1234"}}
+
+	if len(rows) != len(want) {
+		t.Fatalf("got %d rows, want %d: %+v", len(rows), len(want), rows)
 	}
 }

@@ -123,6 +123,7 @@ func (j *GmapJob) Process(ctx context.Context, resp *scrapemate.Response) (any, 
 
 	if resp.Error != nil {
 		if j.ExitMonitor != nil {
+			j.ExitMonitor.IncrSeedFailed(1)
 			j.ExitMonitor.IncrSeedCompleted(1)
 		}
 
@@ -134,6 +135,7 @@ func (j *GmapJob) Process(ctx context.Context, resp *scrapemate.Response) (any, 
 	doc, ok := resp.Document.(*goquery.Document)
 	if !ok {
 		if j.ExitMonitor != nil {
+			j.ExitMonitor.IncrSeedFailed(1)
 			j.ExitMonitor.IncrSeedCompleted(1)
 		}
 
@@ -242,11 +244,19 @@ func (j *GmapJob) BrowserActions(ctx context.Context, page scrapemate.BrowserPag
 
 	scrollSelector := `div[role='feed']`
 
-	_, err = scroll(ctx, page, j.MaxDepth, scrollSelector)
+	navigated, err := scroll(ctx, page, j.MaxDepth, scrollSelector)
 	if err != nil {
 		resp.Error = err
 
 		return resp
+	}
+
+	// Google Maps can redirect the search to a single place page while we are
+	// still scrolling. When that happens the feed we were reading is gone, so
+	// report the URL we actually ended up on — Process keys off it to decide
+	// between parsing a feed and parsing a place.
+	if navigated {
+		resp.URL = page.URL()
 	}
 
 	body, err := page.Content()
@@ -301,13 +311,25 @@ func clickRejectCookiesIfRequired(page scrapemate.BrowserPage) {
 	}`)
 }
 
+// feedGoneHeight is returned by the scroll expression when the feed element no
+// longer exists, which means the page navigated away from the results list.
+const feedGoneHeight = -1
+
+// scroll scrolls the results feed to the bottom up to maxDepth times. It
+// reports whether the page navigated away mid-scroll; that is an expected
+// outcome (Google Maps redirects a search to a single place page), not an
+// error, so the caller can still read whatever page it ended up on.
 func scroll(ctx context.Context,
 	page scrapemate.BrowserPage,
 	maxDepth int,
 	scrollSelector string,
-) (int, error) {
+) (navigated bool, err error) {
 	expr := `async () => {
 		const el = document.querySelector("` + scrollSelector + `");
+		if (!el) {
+			return ` + fmt.Sprintf("%d", feedGoneHeight) + `;
+		}
+
 		el.scrollTop = el.scrollHeight;
 
 		return new Promise((resolve, reject) => {
@@ -321,10 +343,18 @@ func scroll(ctx context.Context,
 	// Scroll to the bottom of the page.
 	waitTime := 100.
 	cnt := 0
+	unchangedReads := 0
 
 	const (
 		timeout  = 500
 		maxWait2 = 2000
+		// Google Maps keeps loading more results after the feed's scrollHeight
+		// briefly stops growing (it fetches the next batch asynchronously), so
+		// one unchanged reading isn't proof the list is exhausted — it used to
+		// be, and that made runs stop after ~20 results at random. Requiring a
+		// second unchanged reading, taken after the full backoff wait, gives
+		// a pending batch time to land before we give up.
+		requiredUnchangedReads = 2
 	)
 
 	for i := 0; i < maxDepth; i++ {
@@ -338,7 +368,11 @@ func scroll(ctx context.Context,
 		// Scroll to the bottom of the page.
 		scrollHeight, err := page.Eval(fmt.Sprintf(expr, waitTime2))
 		if err != nil {
-			return cnt, err
+			if isNavigationEvalError(err) {
+				return true, nil
+			}
+
+			return false, err
 		}
 
 		// Handle both int and float64 because browser-evaluated numbers may arrive as either type.
@@ -349,18 +383,27 @@ func scroll(ctx context.Context,
 		case float64:
 			height = int(v)
 		default:
-			return cnt, fmt.Errorf("scrollHeight is not a number, got %T", scrollHeight)
+			return false, fmt.Errorf("scrollHeight is not a number, got %T", scrollHeight)
+		}
+
+		if height == feedGoneHeight {
+			return true, nil
 		}
 
 		if height == currentScrollHeight {
-			break
-		}
+			unchangedReads++
 
-		currentScrollHeight = height
+			if unchangedReads >= requiredUnchangedReads {
+				break
+			}
+		} else {
+			unchangedReads = 0
+			currentScrollHeight = height
+		}
 
 		select {
 		case <-ctx.Done():
-			return currentScrollHeight, nil
+			return false, nil
 		default:
 		}
 
@@ -373,7 +416,23 @@ func scroll(ctx context.Context,
 		page.WaitForTimeout(time.Duration(waitTime) * time.Millisecond)
 	}
 
-	return cnt, nil
+	return false, nil
+}
+
+// isNavigationEvalError reports whether err is Playwright complaining that the
+// page navigated out from under an in-flight Eval. Google Maps does this on its
+// own (redirecting a search to a single place), so it must not fail the scrape.
+func isNavigationEvalError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	msg := strings.ToLower(err.Error())
+
+	return strings.Contains(msg, "execution context was destroyed") ||
+		strings.Contains(msg, "navigating and changing the document") ||
+		strings.Contains(msg, "target closed") ||
+		strings.Contains(msg, "frame was detached")
 }
 
 func isGoogleMapsURL(s string) bool {

@@ -9,15 +9,18 @@ type Exiter interface {
 	SetSeedCount(int)
 	SetCancelFunc(context.CancelFunc)
 	IncrSeedCompleted(int)
+	IncrSeedFailed(int)
 	IncrPlacesFound(int)
 	IncrPlacesCompleted(int)
 	Progress() (placesFound, placesCompleted int)
+	SeedFailures() int
 	Run(context.Context)
 }
 
 type exiter struct {
 	seedCount       int
 	seedCompleted   int
+	seedFailed      int
 	placesFound     int
 	placesCompleted int
 
@@ -59,6 +62,23 @@ func (e *exiter) IncrSeedCompleted(val int) {
 		default:
 		}
 	}
+}
+
+// IncrSeedFailed records that a seed job ended in an error. It is tracked
+// separately from completion because a failed seed still counts as completed
+// for exit purposes, but means the results are incomplete rather than empty.
+func (e *exiter) IncrSeedFailed(val int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.seedFailed += val
+}
+
+func (e *exiter) SeedFailures() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	return e.seedFailed
 }
 
 func (e *exiter) IncrPlacesFound(val int) {
