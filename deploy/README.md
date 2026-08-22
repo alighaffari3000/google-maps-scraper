@@ -109,13 +109,22 @@ password file, install the site, and let certbot add TLS:
 apt-get install -y apache2-utils
 htpasswd -c /etc/nginx/.htpasswd-scraper admin
 
-cp nginx-site.conf.example /etc/nginx/sites-available/scraper
-sed -i 's/SCRAPER_HOSTNAME/your.hostname.here/' /etc/nginx/sites-available/scraper
-ln -s /etc/nginx/sites-available/scraper /etc/nginx/sites-enabled/scraper
+cp nginx-site.conf.example /etc/nginx/sites-available/zz-scraper
+sed -i 's/SCRAPER_HOSTNAME/your.hostname.here/' /etc/nginx/sites-available/zz-scraper
+ln -s /etc/nginx/sites-available/zz-scraper /etc/nginx/sites-enabled/zz-scraper
 nginx -t && systemctl reload nginx
 
 certbot --nginx -d your.hostname.here
 ```
+
+The `zz-` prefix matters. nginx includes `sites-enabled/*` alphabetically and
+uses the first server block as the default for unrecognised hostnames, so a
+name sorting before the existing sites takes that role away from them.
+
+Reload only after `nginx -t` passes, and give this host its own certificate
+even if a wildcard covering it already exists — HTTP-01 for a single hostname
+needs no DNS credentials, so the scraper does not depend on someone else's
+renewal.
 
 No spare domain? `sslip.io` resolves an embedded IP back to itself, so
 `193-24-120-105.sslip.io` is a usable hostname that certbot will issue for.

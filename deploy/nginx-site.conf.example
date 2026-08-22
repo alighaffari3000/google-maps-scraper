@@ -1,8 +1,20 @@
 # nginx site for the scraper. Copy to /etc/nginx/sites-available/, edit the
-# two placeholders, symlink into sites-enabled/, then `nginx -t && systemctl
-# reload nginx`.
+# hostname, symlink into sites-enabled/, then `nginx -t && systemctl reload
+# nginx`.
 #
 # Add this as a NEW file. Do not edit an existing site config.
+#
+# Install it under a name that sorts AFTER every existing site — zz-scraper is
+# what the live deployment uses. nginx includes sites-enabled/* alphabetically
+# and treats the first server block it sees as the default for any hostname it
+# does not recognise, so a name landing first silently steals that role from
+# whatever site had it.
+#
+# Give this host its own certificate rather than pointing at a shared wildcard,
+# even when a wildcard covering it already exists: a single hostname with an A
+# record can use HTTP-01, which needs no DNS credentials and renews on
+# certbot's own timer, so the scraper does not go down with someone else's
+# renewal.
 #
 # Before enabling, create the password file:
 #   apt-get install -y apache2-utils
@@ -10,11 +22,15 @@
 
 server {
     listen 80;
-    listen [::]:80;
     server_name SCRAPER_HOSTNAME;
 
-    # certbot fills in the TLS listener and the redirect when you run:
+    # certbot adds the TLS listener, the certificate lines and an HTTP
+    # redirect when you run:
     #   certbot --nginx -d SCRAPER_HOSTNAME
+    #
+    # Do not add `http2` to the listen directive it creates. Protocol options
+    # belong to the socket and are set by the first server block that claims
+    # it; repeating them here only produces a warning at every reload.
 
     location / {
         # The scraper has no authentication of its own and serves downloads of
