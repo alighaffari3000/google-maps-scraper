@@ -1,0 +1,51 @@
+# Builds the web-UI image on GitHub's runners and publishes it to GHCR, so a
+# small VPS can pull a finished image instead of compiling Go and downloading
+# Chromium on a 2 GB box.
+name: webapp image
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'deploy/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # Issued automatically for the workflow; no secret to configure.
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Chromium and the Go toolchain dominate the build; caching them
+          # turns a ~15 minute rebuild into a couple of minutes.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

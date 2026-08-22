@@ -50,6 +50,26 @@ Paste the printed hash into `BASIC_AUTH_HASH` and set `SITE_ADDRESS`:
 The first build downloads Chromium and takes 10-20 minutes. Afterwards the site
 is at `https://YOUR_SITE_ADDRESS`.
 
+## Using the prebuilt image (recommended)
+
+Building on the VPS means compiling Go and downloading Chromium on the box
+that has the least capacity to do it. The `webapp image` workflow builds on
+GitHub's runners instead and publishes to GHCR; the VPS then pulls a finished
+image in a couple of minutes.
+
+Run the workflow once from the repository's Actions tab, then make the
+resulting package public (Packages -> google-maps-scraper -> Package settings
+-> Change visibility), so the VPS can pull without logging in.
+
+`SCRAPER_IMAGE` in `.env` selects it. To deploy, and to update later:
+
+```
+docker compose -f docker-compose.yaml -f docker-compose.behind-proxy.yaml pull
+docker compose -f docker-compose.yaml -f docker-compose.behind-proxy.yaml up -d
+```
+
+Unset `SCRAPER_IMAGE` to go back to building from source.
+
 ## Day-to-day
 
 | Task | Command |

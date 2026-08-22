@@ -3,10 +3,13 @@
 # it deliberately publishes no ports — the only way in is through Caddy.
 services:
   scraper:
+    # Defaults to building from source. Point SCRAPER_IMAGE at the image the
+    # webapp-image workflow publishes to skip the build entirely — on a small
+    # VPS, compiling Go and fetching Chromium is the expensive part.
+    image: ${SCRAPER_IMAGE:-gmaps-scraper:local}
     build:
       context: ..
       dockerfile: Dockerfile
-    image: gmaps-scraper:local
     restart: unless-stopped
     command:
       - "-web"
