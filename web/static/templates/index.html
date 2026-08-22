@@ -196,7 +196,7 @@
                         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
                             <div class="px-6 py-4 border-b border-slate-200">
                                 <h2 class="text-base font-semibold text-slate-900">Search Location</h2>
-                                <p class="text-sm text-slate-500">Click the map or drag the marker to set latitude, longitude and zoom.</p>
+                                <p class="text-sm text-slate-500">Just pan and zoom &mdash; the centre of the map (crosshair) is the selected point, and latitude, longitude and zoom update automatically.</p>
                             </div>
                             <div id="location-picker-map" class="w-full flex-1 min-h-[560px]"></div>
                         </div>
@@ -204,7 +204,7 @@
                         <!-- Location settings -->
                         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col">
                             <h2 class="text-base font-semibold text-slate-900 mb-1">Location Settings</h2>
-                            <p class="text-sm text-slate-500 mb-4">Set by the map, or enter coordinates manually.</p>
+                            <p class="text-sm text-slate-500 mb-4">Follows the map centre, or enter coordinates manually.</p>
                             <div class="space-y-4">
                                 <div>
                                     <label for="zoom" class="block text-sm text-slate-600 mb-1">Zoom</label>
@@ -278,8 +278,9 @@
             if (evt.target.closest('#job-table')) refreshStats();
         });
 
-        // Location picker map, defaults to Tehran until the user clicks
-        // or drags the marker to somewhere else.
+        // Location picker map, defaults to Tehran. The coordinates always
+        // track the centre of whatever the user is currently looking at, so
+        // no click is needed: pan/zoom the map and the inputs follow.
         (function () {
             var TEHRAN = [35.6892, 51.3890];
 
@@ -287,9 +288,13 @@
             var lonInput = document.getElementById('longitude');
             var zoomInput = document.getElementById('zoom');
 
+            var syncing = false;
+
             function setCoords(latlng) {
-                latInput.value = latlng.lat;
-                lonInput.value = latlng.lng;
+                syncing = true;
+                latInput.value = latlng.lat.toFixed(7);
+                lonInput.value = latlng.lng.toFixed(7);
+                syncing = false;
             }
 
             var startLat = parseFloat(latInput.value) || TEHRAN[0];
@@ -303,20 +308,45 @@
                 attribution: '&copy; OpenStreetMap contributors',
             }).addTo(map);
 
-            var marker = L.marker(start, { draggable: true }).addTo(map);
-            setCoords(marker.getLatLng());
+            // Crosshair pinned to the centre of the map container. Purely
+            // CSS-positioned, so it stays put through pans, zooms and resizes.
+            var crosshair = document.createElement('div');
+            crosshair.style.cssText =
+                'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);' +
+                'z-index:400;pointer-events:none;';
+            crosshair.innerHTML =
+                '<svg width="34" height="34" viewBox="0 0 34 34" fill="none">' +
+                '<circle cx="17" cy="17" r="6" fill="#2563eb" fill-opacity="0.25" ' +
+                'stroke="#2563eb" stroke-width="2"/>' +
+                '<path d="M17 0v9M17 25v9M0 17h9M25 17h9" stroke="#2563eb" stroke-width="2"/>' +
+                '</svg>';
+            map.getContainer().appendChild(crosshair);
 
-            marker.on('dragend', function () {
-                setCoords(marker.getLatLng());
-            });
+            setCoords(map.getCenter());
+            zoomInput.value = map.getZoom();
 
-            map.on('click', function (e) {
-                marker.setLatLng(e.latlng);
-                setCoords(e.latlng);
+            map.on('move', function () {
+                setCoords(map.getCenter());
             });
 
             map.on('zoomend', function () {
                 zoomInput.value = map.getZoom();
+            });
+
+            // Typing coordinates manually recentres the map on them.
+            function panFromInputs() {
+                if (syncing) return;
+                var lat = parseFloat(latInput.value);
+                var lon = parseFloat(lonInput.value);
+                if (isNaN(lat) || isNaN(lon)) return;
+                map.setView([lat, lon], map.getZoom());
+            }
+
+            latInput.addEventListener('change', panFromInputs);
+            lonInput.addEventListener('change', panFromInputs);
+            zoomInput.addEventListener('change', function () {
+                var z = parseInt(zoomInput.value, 10);
+                if (!isNaN(z)) map.setZoom(z);
             });
 
             setTimeout(function () { map.invalidateSize(); }, 0);
