@@ -38,11 +38,20 @@
                 </svg>
                 <span class="text-white font-semibold tracking-tight">GMaps Scraper</span>
             </div>
-            <a href="/api/docs" target="_blank" rel="noopener noreferrer"
+            <div class="flex items-center gap-1">
+                <button type="button" id="notify-toggle" title="Notify me when a job finishes"
+                        class="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-white/10 hover:text-white transition-colors">
+                    <svg id="notify-icon" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10 2a6 6 0 0 0-6 6v3.586l-.707.707A1 1 0 0 0 4 14h12a1 1 0 0 0 .707-1.707L16 11.586V8a6 6 0 0 0-6-6zM10 18a2 2 0 0 0 2-2H8a2 2 0 0 0 2 2z"/>
+                    </svg>
+                    <span id="notify-label">Notifications</span>
+                </button>
+                <a href="/api/docs" target="_blank" rel="noopener noreferrer"
                class="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-white/10 hover:text-white transition-colors">
                 <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path d="M4 3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7.414a1 1 0 0 0-.293-.707l-3.414-3.414A1 1 0 0 0 12.586 3H4z"/></svg>
-                API Documentation
-            </a>
+                    API Documentation
+                </a>
+            </div>
         </header>
 
         <main class="flex-1 overflow-y-auto">
@@ -332,6 +341,139 @@
         document.body.addEventListener('htmx:afterSwap', function (evt) {
             if (evt.target.closest('#job-table')) refreshStats();
         });
+
+        // ---- Finish notifications -------------------------------------
+        //
+        // A grid job over a district runs for a long while, and the panel is
+        // not what the user is looking at meanwhile. The jobs table already
+        // polls every ten seconds, so completion is detectable here without
+        // any server support: remember each job's status between polls and
+        // notify on the transition into a finished one.
+        (function () {
+            var FINISHED = { ok: true, failed: true };
+
+            var toggle = document.getElementById('notify-toggle');
+            var label = document.getElementById('notify-label');
+            var icon = document.getElementById('notify-icon');
+
+            var supported = 'Notification' in window;
+
+            // Seeded on the first poll rather than left empty, so opening the
+            // page does not fire a notification for every job that finished
+            // while it was closed.
+            var lastStatus = null;
+
+            function paint() {
+                if (!supported) {
+                    label.textContent = 'Notifications unsupported';
+                    toggle.disabled = true;
+                    toggle.classList.add('opacity-50', 'cursor-not-allowed');
+                    return;
+                }
+
+                switch (Notification.permission) {
+                    case 'granted':
+                        label.textContent = 'Notifications on';
+                        icon.classList.add('text-brand-500');
+                        toggle.title = 'You will be notified when a job finishes';
+                        break;
+                    case 'denied':
+                        label.textContent = 'Notifications blocked';
+                        icon.classList.remove('text-brand-500');
+                        toggle.title = 'Blocked in your browser settings for this site';
+                        break;
+                    default:
+                        label.textContent = 'Enable notifications';
+                        icon.classList.remove('text-brand-500');
+                        toggle.title = 'Notify me when a job finishes';
+                }
+            }
+
+            toggle.addEventListener('click', function () {
+                if (!supported) return;
+
+                if (Notification.permission === 'denied') {
+                    alert('Notifications are blocked for this site. Re-enable them in your browser’s site settings, then reload.');
+                    return;
+                }
+
+                // Chrome only honours the prompt from a user gesture, which is
+                // why this lives on a click rather than running at load.
+                Notification.requestPermission().then(paint);
+            });
+
+            function notify(job) {
+                if (!supported || Notification.permission !== 'granted') return;
+
+                var ok = job.status === 'ok';
+                var body;
+
+                if (!ok) {
+                    body = 'The job failed. Open the panel for the reason.';
+                } else if (job.results) {
+                    body = job.results + ' result' + (job.results === '1' ? '' : 's') + ' ready to download.';
+                } else {
+                    body = 'Finished with no results.';
+                }
+
+                var n = new Notification((ok ? '✅ ' : '⚠️ ') + job.name, {
+                    body: body,
+                    // Collapses repeats for the same job instead of stacking
+                    // one notification per poll.
+                    tag: 'job-' + job.id,
+                    requireInteraction: false,
+                });
+
+                n.onclick = function () {
+                    window.focus();
+                    n.close();
+                };
+            }
+
+            function readRows() {
+                var seen = {};
+
+                document.querySelectorAll('#job-table tr[data-job-id]').forEach(function (tr) {
+                    seen[tr.dataset.jobId] = {
+                        id: tr.dataset.jobId,
+                        name: tr.dataset.jobName || 'Job',
+                        status: tr.dataset.jobStatus,
+                        results: tr.dataset.jobResults,
+                    };
+                });
+
+                return seen;
+            }
+
+            function check() {
+                var current = readRows();
+
+                if (lastStatus === null) {
+                    lastStatus = {};
+
+                    for (var id in current) lastStatus[id] = current[id].status;
+
+                    return;
+                }
+
+                for (var jobId in current) {
+                    var job = current[jobId];
+                    var before = lastStatus[jobId];
+
+                    if (before && before !== job.status && FINISHED[job.status]) {
+                        notify(job);
+                    }
+
+                    lastStatus[jobId] = job.status;
+                }
+            }
+
+            paint();
+
+            document.body.addEventListener('htmx:afterSwap', function (evt) {
+                if (evt.target.closest('#job-table')) check();
+            });
+        })();
 
         // Location picker map, defaults to Tehran. The coordinates always
         // track the centre of whatever the user is currently looking at, so
