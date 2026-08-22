@@ -1,0 +1,52 @@
+# Production deployment: the scraper behind Caddy, which terminates TLS and
+# enforces Basic Auth. The scraper itself has no authentication of its own, so
+# it deliberately publishes no ports — the only way in is through Caddy.
+services:
+  scraper:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: gmaps-scraper:local
+    restart: unless-stopped
+    command:
+      - "-web"
+      - "-addr"
+      - ":8080"
+      - "-data-folder"
+      - "/data"
+      # One browser at a time. On a 2 GB host a second concurrent Chromium is
+      # what pushes the box into swap and then into the OOM killer.
+      - "-c"
+      - "1"
+    volumes:
+      - scraper-data:/data
+    expose:
+      - "8080"
+    # Caps Chromium's blast radius: if a scrape balloons, the container dies
+    # and restarts instead of taking the host (and your SSH session) with it.
+    mem_limit: 1400m
+    memswap_limit: 2g
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    # env_file, not `environment:` — a bcrypt hash is full of $ characters and
+    # Compose would try to expand them as variables on the way through. Values
+    # from env_file are handed to the container verbatim.
+    env_file:
+      - .env
+    mem_limit: 128m
+    depends_on:
+      - scraper
+
+volumes:
+  scraper-data:
+  caddy-data:
+  caddy-config:

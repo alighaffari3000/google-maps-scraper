@@ -1,0 +1,19 @@
+{$SITE_ADDRESS} {
+	# The scraper exposes downloads of every scraped lead database and a
+	# delete endpoint, none of it authenticated. This block is the only thing
+	# standing between that and the open internet — do not remove it.
+	basic_auth {
+		{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+	}
+
+	reverse_proxy scraper:8080
+
+	encode gzip
+
+	log {
+		output file /data/access.log {
+			roll_size 10mb
+			roll_keep 5
+		}
+	}
+}
