@@ -384,6 +384,7 @@ func (s *Server) scrape(w http.ResponseWriter, r *http.Request) {
 	newJob.Data.RequirePhone = r.Form.Get("requirephone") == "on"
 	newJob.Data.ExcludeClosed = r.Form.Get("excludeclosed") == "on"
 	newJob.Data.NormalizePhones = r.Form.Get("normalizephones") == "on"
+	newJob.Data.RestrictToArea = r.Form.Get("restricttoarea") == "on"
 
 	if raw := strings.TrimSpace(r.Form.Get("minreviews")); raw != "" {
 		newJob.Data.MinReviews, err = strconv.Atoi(raw)

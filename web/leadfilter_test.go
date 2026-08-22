@@ -199,7 +199,9 @@ func TestLeadFilterBoundingBox(t *testing.T) {
 func TestJobDataLeadFilterParsesBBox(t *testing.T) {
 	t.Parallel()
 
-	d := JobData{BBox: "35.79,51.43,35.81,51.46"}
+	// Area restriction is opt-in, so this asserts the parsing rather than the
+	// default; TestJobDataAreaRestrictionIsOptIn covers the default.
+	d := JobData{BBox: "35.79,51.43,35.81,51.46", RestrictToArea: true}
 
 	f := d.LeadFilter()
 	if f.BBox == nil {
@@ -253,7 +255,7 @@ func TestJobDataLeadFilterRadius(t *testing.T) {
 	t.Run("point mode picks up the radius", func(t *testing.T) {
 		t.Parallel()
 
-		f := (&JobData{Lat: "35.6892", Lon: "51.3890", Radius: 5000}).LeadFilter()
+		f := (&JobData{Lat: "35.6892", Lon: "51.3890", Radius: 5000, RestrictToArea: true}).LeadFilter()
 		if f.RadiusMeters != 5000 {
 			t.Errorf("RadiusMeters = %v, want 5000", f.RadiusMeters)
 		}
@@ -265,10 +267,11 @@ func TestJobDataLeadFilterRadius(t *testing.T) {
 		// A grid has no single centre; constraining to the box and to a radius
 		// around one arbitrary point would double-filter.
 		f := (&JobData{
-			BBox:   "35.79,51.43,35.81,51.46",
-			Lat:    "35.6892",
-			Lon:    "51.3890",
-			Radius: 5000,
+			BBox:           "35.79,51.43,35.81,51.46",
+			Lat:            "35.6892",
+			Lon:            "51.3890",
+			Radius:         5000,
+			RestrictToArea: true,
 		}).LeadFilter()
 
 		if f.RadiusMeters != 0 {
@@ -283,7 +286,7 @@ func TestJobDataLeadFilterRadius(t *testing.T) {
 	t.Run("no coordinates means no radius filter", func(t *testing.T) {
 		t.Parallel()
 
-		if f := (&JobData{Radius: 5000}).LeadFilter(); f.RadiusMeters != 0 {
+		if f := (&JobData{Radius: 5000, RestrictToArea: true}).LeadFilter(); f.RadiusMeters != 0 {
 			t.Errorf("RadiusMeters = %v, want 0 without a centre", f.RadiusMeters)
 		}
 	})
@@ -303,4 +306,59 @@ func TestHaversineMeters(t *testing.T) {
 	if d := haversineMeters(35.6892, 51.3890, 35.6892, 51.3890); d != 0 {
 		t.Errorf("distance to itself = %v, want 0", d)
 	}
+}
+
+func TestJobDataAreaRestrictionIsOptIn(t *testing.T) {
+	t.Parallel()
+
+	area := JobData{BBox: "35.79,51.43,35.81,51.46"}
+	point := JobData{Lat: "35.6892", Lon: "51.3890", Radius: 5000}
+
+	t.Run("area is kept whole by default", func(t *testing.T) {
+		t.Parallel()
+
+		// Google's extra results are real businesses matching the keyword;
+		// discarding them without being asked would lose leads silently.
+		if f := area.LeadFilter(); f.BBox != nil {
+			t.Error("a box must not be enforced unless the user asked")
+		}
+
+		if f := point.LeadFilter(); f.RadiusMeters != 0 {
+			t.Error("a radius must not be enforced unless the user asked")
+		}
+	})
+
+	t.Run("opting in enforces the box", func(t *testing.T) {
+		t.Parallel()
+
+		d := area
+		d.RestrictToArea = true
+
+		if f := d.LeadFilter(); f.BBox == nil {
+			t.Error("expected the box to be enforced")
+		}
+	})
+
+	t.Run("opting in enforces the radius", func(t *testing.T) {
+		t.Parallel()
+
+		d := point
+		d.RestrictToArea = true
+
+		if f := d.LeadFilter(); f.RadiusMeters != 5000 {
+			t.Errorf("RadiusMeters = %v, want 5000", f.RadiusMeters)
+		}
+	})
+
+	t.Run("other filters are unaffected", func(t *testing.T) {
+		t.Parallel()
+
+		d := area
+		d.RequirePhone = true
+
+		f := d.LeadFilter()
+		if !f.RequirePhone || !f.Active() {
+			t.Error("lead filters must work independently of the area opt-in")
+		}
+	})
 }

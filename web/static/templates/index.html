@@ -154,6 +154,13 @@
                                     <div class="px-3 space-y-3">
                                         <p class="text-xs text-slate-500">Applied when you download, not when scraping &mdash; every result is kept on the server, so changing these never costs a re-scrape.</p>
 
+                                        <label for="restricttoarea" class="flex items-center gap-2 text-sm text-slate-700">
+                                            <input type="checkbox" id="restricttoarea" name="restricttoarea"
+                                                   class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                                            Only results inside the selected area
+                                        </label>
+                                        <p class="text-xs text-slate-500 -mt-1 ps-6">Google answers from a wider area than the one you pick, so extra places come back from nearby neighbourhoods. They are kept unless you tick this.</p>
+
                                         <label for="requirephone" class="flex items-center gap-2 text-sm text-slate-700">
                                             <input type="checkbox" id="requirephone" name="requirephone"
                                                    class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
@@ -567,7 +574,7 @@
             var submitBtn = document.getElementById('submit-btn');
 
             var POINT_HELP = mapHelp.textContent;
-            var AREA_HELP = 'Drag on the map to draw a rectangle. Every place inside it is searched, cell by cell.';
+            var AREA_HELP = 'Drag on the map to draw a rectangle. Google also returns places just outside it — see "Only results inside the selected area" under Lead Quality.';
 
             var areaMode = false;
             var rect = null;

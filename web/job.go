@@ -110,6 +110,16 @@ type JobData struct {
 	ExcludeClosed bool `json:"exclude_closed,omitempty"`
 	MinReviews    int  `json:"min_reviews,omitempty"`
 
+	// RestrictToArea drops results that fall outside the drawn rectangle, or
+	// outside Radius of the picked point.
+	//
+	// Off by default, and deliberately so. Google answers a search from a
+	// viewport far wider than the area asked for, and those extra places are
+	// still real businesses matching the keyword — just not where the user
+	// pointed. Throwing them away by default would silently discard leads
+	// somebody went looking for, so the choice is theirs to make.
+	RestrictToArea bool `json:"restrict_to_area,omitempty"`
+
 	// NormalizePhones rewrites Iranian numbers into E.164 in the downloaded
 	// workbook, so a sheet mixing +98/0/00 prefixes can be dialled from and
 	// imported without hand-editing.

@@ -53,6 +53,11 @@ func (d *JobData) LeadFilter() LeadFilter {
 		MinReviews:    d.MinReviews,
 	}
 
+	// Area constraints are opt-in: see JobData.RestrictToArea.
+	if !d.RestrictToArea {
+		return filter
+	}
+
 	if d.BBox != "" {
 		if box, err := grid.ParseBoundingBox(d.BBox); err == nil {
 			filter.BBox = &box
