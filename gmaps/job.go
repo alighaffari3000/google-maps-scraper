@@ -123,6 +123,12 @@ func (j *GmapJob) Process(ctx context.Context, resp *scrapemate.Response) (any, 
 
 	if resp.Error != nil {
 		if j.ExitMonitor != nil {
+			// BrowserActions reports a refusal through resp.Error, so this
+			// is where a block surfaces on the browser path.
+			if IsBlocked(resp.Error) {
+				j.ExitMonitor.IncrSeedBlocked(1)
+			}
+
 			j.ExitMonitor.IncrSeedFailed(1)
 			j.ExitMonitor.IncrSeedCompleted(1)
 		}
@@ -208,6 +214,15 @@ func (j *GmapJob) BrowserActions(ctx context.Context, page scrapemate.BrowserPag
 	resp.URL = pageResponse.URL
 	resp.StatusCode = pageResponse.StatusCode
 	resp.Headers = pageResponse.Headers
+
+	// Bail out before waiting on selectors that a block page will never
+	// have: otherwise the two 5-10s waits below both time out and the job
+	// ends looking like an ordinary empty search.
+	if blockErr := detectBlockedPage(page, pageResponse.StatusCode, page.URL()); blockErr != nil {
+		resp.Error = blockErr
+
+		return resp
+	}
 
 	// When Google Maps finds only 1 place, it slowly redirects to that place's URL
 	// check element scroll
@@ -422,6 +437,24 @@ func scroll(ctx context.Context,
 // isNavigationEvalError reports whether err is Playwright complaining that the
 // page navigated out from under an in-flight Eval. Google Maps does this on its
 // own (redirecting a search to a single place), so it must not fail the scrape.
+// detectBlockedPage reports whether the loaded page is one of Google's
+// anti-automation interstitials. The body is only fetched when the cheap
+// checks are inconclusive, since Content() serialises the whole DOM.
+func detectBlockedPage(page scrapemate.BrowserPage, statusCode int, finalURL string) error {
+	if err := detectBlock(statusCode, finalURL, nil); err != nil {
+		return err
+	}
+
+	body, err := page.Content()
+	if err != nil {
+		// An unreadable page is not evidence of a block; let the normal
+		// selector waits decide what happened.
+		return nil
+	}
+
+	return detectBlock(0, "", []byte(body))
+}
+
 func isNavigationEvalError(err error) bool {
 	if err == nil {
 		return false

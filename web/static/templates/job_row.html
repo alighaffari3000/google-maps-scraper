@@ -2,8 +2,11 @@
     <td class="px-6 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{{.ID}}</td>
     <td class="px-6 py-3 text-slate-800 whitespace-nowrap">{{.Name}}</td>
     <td class="px-6 py-3 text-slate-500 whitespace-nowrap">{{.Date}}</td>
-    <td class="px-6 py-3 whitespace-nowrap">
+    <td class="px-6 py-3">
         <span class="status-indicator status-{{.Status}}">{{.Status}}</span>
+        {{ if .Data.Error }}
+            <span class="job-warning" title="{{.Data.Error}}">&#9888; blocked</span>
+        {{ end }}
     </td>
     <td class="px-6 py-3 text-slate-500 whitespace-nowrap">
         {{ if eq .Status "working" }}

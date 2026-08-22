@@ -4,6 +4,7 @@ package webrunner
 import (
 	"context"
 	"io"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -213,15 +214,18 @@ type stubExiter struct {
 	found     int
 	completed int
 	failures  int
+	blocked   int
 }
 
 func (e *stubExiter) SetSeedCount(int)                 {}
 func (e *stubExiter) SetCancelFunc(context.CancelFunc) {}
 func (e *stubExiter) IncrSeedCompleted(int)            {}
 func (e *stubExiter) IncrSeedFailed(int)               {}
+func (e *stubExiter) IncrSeedBlocked(int)              {}
 func (e *stubExiter) IncrPlacesFound(int)              {}
 func (e *stubExiter) IncrPlacesCompleted(int)          {}
 func (e *stubExiter) SeedFailures() int                { return e.failures }
+func (e *stubExiter) SeedsBlocked() int                { return e.blocked }
 func (e *stubExiter) Progress() (int, int)             { return e.found, e.completed }
 func (e *stubExiter) Run(ctx context.Context)          { <-ctx.Done() }
 
@@ -257,9 +261,11 @@ func (e *countingExiter) SetSeedCount(int)                 {}
 func (e *countingExiter) SetCancelFunc(context.CancelFunc) {}
 func (e *countingExiter) IncrSeedCompleted(int)            {}
 func (e *countingExiter) IncrSeedFailed(int)               {}
+func (e *countingExiter) IncrSeedBlocked(int)              {}
 func (e *countingExiter) IncrPlacesFound(int)              {}
 func (e *countingExiter) IncrPlacesCompleted(int)          {}
 func (e *countingExiter) SeedFailures() int                { return 0 }
+func (e *countingExiter) SeedsBlocked() int                { return 0 }
 func (e *countingExiter) Run(ctx context.Context)          { <-ctx.Done() }
 
 func (e *countingExiter) Progress() (int, int) {
@@ -365,4 +371,117 @@ func (r *memoryJobRepo) sawLateUpdate() bool {
 	defer r.mu.Unlock()
 
 	return r.lateUpdate
+}
+
+func TestScrapeJobReportsBlocks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		blocked     int
+		failures    int
+		found       int
+		wantStatus  string
+		wantMessage bool
+	}{
+		{
+			name:        "blocked with nothing collected",
+			blocked:     2,
+			failures:    2,
+			found:       0,
+			wantStatus:  web.StatusFailed,
+			wantMessage: true,
+		},
+		{
+			// A partial block still succeeds, but the user has to be told the
+			// count is a floor rather than the answer.
+			name:        "blocked after some results got through",
+			blocked:     1,
+			failures:    1,
+			found:       14,
+			wantStatus:  web.StatusOK,
+			wantMessage: true,
+		},
+		{
+			name:       "clean run says nothing",
+			found:      14,
+			wantStatus: web.StatusOK,
+		},
+		{
+			// Failing for some other reason must not be reported as a block,
+			// which would send the user after proxies for an unrelated bug.
+			name:        "failed for another reason",
+			failures:    1,
+			found:       0,
+			wantStatus:  web.StatusFailed,
+			wantMessage: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			svc := web.NewService(&memoryJobRepo{}, t.TempDir())
+			job := web.Job{
+				ID:     "job-" + tt.name,
+				Name:   "companies",
+				Date:   time.Now().UTC(),
+				Status: web.StatusPending,
+				Data: web.JobData{
+					Keywords: []string{"companies"},
+					Lang:     "fa",
+					Zoom:     15,
+					Lat:      "35.73",
+					Lon:      "51.43",
+					Depth:    10,
+					MaxTime:  time.Minute,
+				},
+			}
+
+			if err := svc.Create(context.Background(), &job); err != nil {
+				t.Fatalf("create job: %v", err)
+			}
+
+			w := &webrunner{
+				svc: svc,
+				cfg: &runner.Config{DataFolder: t.TempDir(), Concurrency: 1},
+				setupMate: func(context.Context, io.Writer, *web.Job) (mateRunner, error) {
+					return fakeMate{}, nil
+				},
+				newExiter: func() exiter.Exiter {
+					return &stubExiter{found: tt.found, failures: tt.failures, blocked: tt.blocked}
+				},
+			}
+
+			if err := w.scrapeJob(context.Background(), &job); err != nil {
+				t.Fatalf("scrape job: %v", err)
+			}
+
+			got, err := svc.Get(context.Background(), job.ID)
+			if err != nil {
+				t.Fatalf("get: %v", err)
+			}
+
+			if got.Status != tt.wantStatus {
+				t.Errorf("status = %q, want %q", got.Status, tt.wantStatus)
+			}
+
+			if tt.wantMessage && got.Data.Error == "" {
+				t.Error("expected an explanation to be recorded")
+			}
+
+			if !tt.wantMessage && got.Data.Error != "" {
+				t.Errorf("unexpected explanation: %q", got.Data.Error)
+			}
+
+			if tt.blocked > 0 && !strings.Contains(got.Data.Error, "blocked") {
+				t.Errorf("message %q does not mention the block", got.Data.Error)
+			}
+
+			if tt.blocked == 0 && strings.Contains(got.Data.Error, "blocked") {
+				t.Errorf("message %q wrongly blames a block", got.Data.Error)
+			}
+		})
+	}
 }

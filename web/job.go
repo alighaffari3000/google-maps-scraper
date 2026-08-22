@@ -90,6 +90,12 @@ type JobData struct {
 	PlacesFound     int `json:"places_found"`
 	PlacesCompleted int `json:"places_completed"`
 
+	// Error, when non-empty, explains why a job did not produce what the user
+	// expected. It is set for outcomes that a bare "failed" status cannot
+	// distinguish — being rate limited by Google above all, which otherwise
+	// looks exactly like searching an area with no businesses in it.
+	Error string `json:"error,omitempty"`
+
 	// Fields, when non-empty, restricts the output CSV to these column names
 	// (matching gmaps.Entry.CsvHeaders()). Empty means "all columns", which
 	// keeps existing jobs and API/CLI callers unaffected.

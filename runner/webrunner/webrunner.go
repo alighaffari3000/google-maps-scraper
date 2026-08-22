@@ -339,8 +339,21 @@ func (w *webrunner) scrapeJob(ctx context.Context, job *web.Job) error {
 		// succeeded.
 		found, _ := exitMonitor.Progress()
 
+		// Being refused by Google is reported even when some results did get
+		// through: a partial block still means the output is short, and the
+		// user needs to know the number is a floor rather than the answer.
+		if blocked := exitMonitor.SeedsBlocked(); blocked > 0 {
+			log.Printf("job %s: google blocked %d search(es)", job.ID, blocked)
+
+			job.Data.Error = blockedMessage(blocked, found)
+		}
+
 		if failures := exitMonitor.SeedFailures(); failures > 0 && found == 0 {
 			log.Printf("job %s: all %d seed job(s) failed, no places found", job.ID, failures)
+
+			if job.Data.Error == "" {
+				job.Data.Error = "Every search failed and nothing was collected. Check the scraper logs for the cause."
+			}
 
 			job.Status = web.StatusFailed
 
@@ -353,6 +366,20 @@ func (w *webrunner) scrapeJob(ctx context.Context, job *web.Job) error {
 	job.Status = web.StatusOK
 
 	return w.svc.Update(ctx, job)
+}
+
+// blockedMessage phrases a block for someone looking at the jobs table, who
+// needs to know whether to retry, wait, or reach for proxies — not which
+// internal counter tripped.
+func blockedMessage(blocked, found int) string {
+	const advice = " Google rate-limits datacenter IPs; wait a while before retrying, " +
+		"or add residential proxies in the Proxies field."
+
+	if found == 0 {
+		return fmt.Sprintf("Google blocked %d search(es) and no results were collected.%s", blocked, advice)
+	}
+
+	return fmt.Sprintf("Google blocked %d search(es), so these %d result(s) are incomplete.%s", blocked, found, advice)
 }
 
 func defaultSetupMate(cfg *runner.Config) func(context.Context, io.Writer, *web.Job) (mateRunner, error) {

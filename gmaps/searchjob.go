@@ -95,6 +95,19 @@ func (j *SearchJob) Process(_ context.Context, resp *scrapemate.Response) (any, 
 		return nil, nil, resp.Error
 	}
 
+	// Checked before parsing: an interstitial is a well-formed page that
+	// simply contains no results, so parsing it succeeds and yields zero
+	// entries — indistinguishable from a genuinely empty area.
+	if err := detectBlock(resp.StatusCode, resp.URL, resp.Body); err != nil {
+		if j.ExitMonitor != nil {
+			j.ExitMonitor.IncrSeedBlocked(1)
+			j.ExitMonitor.IncrSeedFailed(1)
+			j.ExitMonitor.IncrSeedCompleted(1)
+		}
+
+		return nil, nil, err
+	}
+
 	body := removeFirstLine(resp.Body)
 	if len(body) == 0 {
 		if j.ExitMonitor != nil {

@@ -10,10 +10,12 @@ type Exiter interface {
 	SetCancelFunc(context.CancelFunc)
 	IncrSeedCompleted(int)
 	IncrSeedFailed(int)
+	IncrSeedBlocked(int)
 	IncrPlacesFound(int)
 	IncrPlacesCompleted(int)
 	Progress() (placesFound, placesCompleted int)
 	SeedFailures() int
+	SeedsBlocked() int
 	Run(context.Context)
 }
 
@@ -21,6 +23,7 @@ type exiter struct {
 	seedCount       int
 	seedCompleted   int
 	seedFailed      int
+	seedBlocked     int
 	placesFound     int
 	placesCompleted int
 
@@ -72,6 +75,23 @@ func (e *exiter) IncrSeedFailed(val int) {
 	defer e.mu.Unlock()
 
 	e.seedFailed += val
+}
+
+// IncrSeedBlocked records that a seed job was refused by Google rather than
+// merely failing. Counted apart from seedFailed so the web UI can say "you are
+// being rate limited" instead of the far less actionable "no results".
+func (e *exiter) IncrSeedBlocked(val int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.seedBlocked += val
+}
+
+func (e *exiter) SeedsBlocked() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	return e.seedBlocked
 }
 
 func (e *exiter) SeedFailures() int {
