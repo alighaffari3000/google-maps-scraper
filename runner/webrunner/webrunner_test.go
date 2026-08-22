@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gosom/google-maps-scraper/deduper"
 	"github.com/gosom/google-maps-scraper/exiter"
 	"github.com/gosom/google-maps-scraper/runner"
 	"github.com/gosom/google-maps-scraper/web"
@@ -484,4 +485,95 @@ func TestScrapeJobReportsBlocks(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBuildSeedJobsGridVsPoint(t *testing.T) {
+	t.Parallel()
+
+	newJob := func() *web.Job {
+		return &web.Job{
+			ID:   "j1",
+			Name: "pharmacies",
+			Data: web.JobData{
+				Keywords: []string{"pharmacy"},
+				Lang:     "fa",
+				Zoom:     15,
+				Depth:    10,
+			},
+		}
+	}
+
+	t.Run("point mode produces one job per keyword", func(t *testing.T) {
+		t.Parallel()
+
+		job := newJob()
+		job.Data.Lat = "35.73"
+		job.Data.Lon = "51.43"
+
+		jobs, err := buildSeedJobs(job, "35.73,51.43", deduper.New(), nil, false)
+		if err != nil {
+			t.Fatalf("buildSeedJobs: %v", err)
+		}
+
+		if len(jobs) != 1 {
+			t.Fatalf("got %d seed jobs, want 1", len(jobs))
+		}
+	})
+
+	t.Run("area mode produces one job per cell", func(t *testing.T) {
+		t.Parallel()
+
+		// Roughly 11 km of latitude at 2 km cells: several rows, so the count
+		// must be well above the single job point mode would create.
+		job := newJob()
+		job.Data.BBox = "35.60,51.20,35.70,51.30"
+		job.Data.GridCellKm = 2
+
+		jobs, err := buildSeedJobs(job, "", deduper.New(), nil, false)
+		if err != nil {
+			t.Fatalf("buildSeedJobs: %v", err)
+		}
+
+		if len(jobs) <= 1 {
+			t.Fatalf("got %d seed jobs, want a grid of several", len(jobs))
+		}
+	})
+
+	t.Run("smaller cells produce more jobs", func(t *testing.T) {
+		t.Parallel()
+
+		coarse := newJob()
+		coarse.Data.BBox = "35.60,51.20,35.70,51.30"
+		coarse.Data.GridCellKm = 4
+
+		fine := newJob()
+		fine.Data.BBox = "35.60,51.20,35.70,51.30"
+		fine.Data.GridCellKm = 1
+
+		coarseJobs, err := buildSeedJobs(coarse, "", deduper.New(), nil, false)
+		if err != nil {
+			t.Fatalf("coarse: %v", err)
+		}
+
+		fineJobs, err := buildSeedJobs(fine, "", deduper.New(), nil, false)
+		if err != nil {
+			t.Fatalf("fine: %v", err)
+		}
+
+		if len(fineJobs) <= len(coarseJobs) {
+			t.Errorf("1km grid produced %d jobs, 4km produced %d; expected more",
+				len(fineJobs), len(coarseJobs))
+		}
+	})
+
+	t.Run("malformed area is an error, not a silent point search", func(t *testing.T) {
+		t.Parallel()
+
+		job := newJob()
+		job.Data.BBox = "not-a-box"
+
+		if _, err := buildSeedJobs(job, "", deduper.New(), nil, false); err == nil {
+			t.Fatal("expected an error for a malformed bounding box")
+		}
+	})
 }

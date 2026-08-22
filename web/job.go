@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/gosom/google-maps-scraper/grid"
 )
 
 var jobs []Job
@@ -90,6 +92,17 @@ type JobData struct {
 	PlacesFound     int `json:"places_found"`
 	PlacesCompleted int `json:"places_completed"`
 
+	// BBox, when non-empty, switches the job from a single search at Lat/Lon
+	// to a grid of searches covering a rectangle, formatted as
+	// "minLat,minLon,maxLat,maxLon". Google caps results per search, not per
+	// area, so covering a neighbourhood properly means many small searches
+	// rather than one big one.
+	BBox string `json:"bbox,omitempty"`
+
+	// GridCellKm is the side length of each grid cell in kilometres. Ignored
+	// unless BBox is set; zero means the grid package's own default.
+	GridCellKm float64 `json:"grid_cell_km,omitempty"`
+
 	// Error, when non-empty, explains why a job did not produce what the user
 	// expected. It is set for outcomes that a bare "failed" status cannot
 	// distinguish — being rate limited by Google above all, which otherwise
@@ -121,6 +134,20 @@ func (d *JobData) Validate() error {
 
 	if d.MaxTime == 0 {
 		return errors.New("missing max time")
+	}
+
+	if d.BBox != "" {
+		if _, err := grid.ParseBoundingBox(d.BBox); err != nil {
+			return err
+		}
+
+		if d.GridCellKm < 0 {
+			return errors.New("grid cell size cannot be negative")
+		}
+
+		// A grid supplies its own coordinates per cell, so Lat/Lon are unused
+		// and the FastMode check below would reject a perfectly valid job.
+		return nil
 	}
 
 	if d.FastMode && (d.Lat == "" || d.Lon == "") {

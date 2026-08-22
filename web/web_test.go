@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func newTestServer(t *testing.T, dir string) *Server {
@@ -93,4 +94,77 @@ func TestSecurityHeadersAllowMapResources(t *testing.T) {
 			t.Fatalf("CSP missing %q: %s", want, csp)
 		}
 	}
+}
+
+func TestJobDataValidateBBox(t *testing.T) {
+	t.Parallel()
+
+	base := func() JobData {
+		return JobData{
+			Keywords: []string{"pharmacy"},
+			Lang:     "fa",
+			Depth:    10,
+			MaxTime:  time.Minute,
+		}
+	}
+
+	t.Run("valid area", func(t *testing.T) {
+		t.Parallel()
+
+		d := base()
+		d.BBox = "35.60,51.20,35.80,51.50"
+		d.GridCellKm = 1
+
+		if err := d.Validate(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("malformed area is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		d := base()
+		d.BBox = "35.60,51.20,35.80"
+
+		if err := d.Validate(); err == nil {
+			t.Fatal("expected an error for a three-corner box")
+		}
+	})
+
+	t.Run("negative cell size is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		d := base()
+		d.BBox = "35.60,51.20,35.80,51.50"
+		d.GridCellKm = -1
+
+		if err := d.Validate(); err == nil {
+			t.Fatal("expected an error for a negative cell size")
+		}
+	})
+
+	t.Run("area mode does not need coordinates in fast mode", func(t *testing.T) {
+		t.Parallel()
+
+		// Fast mode normally demands Lat/Lon, but a grid supplies its own per
+		// cell, so requiring them here would reject a valid job.
+		d := base()
+		d.FastMode = true
+		d.BBox = "35.60,51.20,35.80,51.50"
+
+		if err := d.Validate(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("point mode in fast mode still needs coordinates", func(t *testing.T) {
+		t.Parallel()
+
+		d := base()
+		d.FastMode = true
+
+		if err := d.Validate(); err == nil {
+			t.Fatal("expected an error for fast mode without coordinates")
+		}
+	})
 }

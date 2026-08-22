@@ -14,6 +14,7 @@ import (
 
 	"github.com/gosom/google-maps-scraper/deduper"
 	"github.com/gosom/google-maps-scraper/exiter"
+	"github.com/gosom/google-maps-scraper/grid"
 	"github.com/gosom/google-maps-scraper/runner"
 	"github.com/gosom/google-maps-scraper/tlmt"
 	"github.com/gosom/google-maps-scraper/web"
@@ -253,25 +254,8 @@ func (w *webrunner) scrapeJob(ctx context.Context, job *web.Job) error {
 
 	exitMonitor := newExiter()
 
-	seedJobs, err := runner.CreateSeedJobs(
-		job.Data.FastMode,
-		job.Data.Lang,
-		strings.NewReader(strings.Join(job.Data.Keywords, "\n")),
-		job.Data.Depth,
-		job.Data.Email,
-		coords,
-		job.Data.Zoom,
-		func() float64 {
-			if job.Data.Radius <= 0 {
-				return 10000 // 10 km
-			}
-
-			return float64(job.Data.Radius)
-		}(),
-		dedup,
-		exitMonitor,
-		w.cfg.ExtraReviews || job.Data.ExtraReviews,
-	)
+	seedJobs, err := buildSeedJobs(job, coords, dedup, exitMonitor,
+		w.cfg.ExtraReviews || job.Data.ExtraReviews)
 	if err != nil {
 		err2 := w.svc.Update(ctx, job)
 		if err2 != nil {
@@ -367,6 +351,71 @@ func (w *webrunner) scrapeJob(ctx context.Context, job *web.Job) error {
 
 	return w.svc.Update(ctx, job)
 }
+
+// buildSeedJobs turns a job into the searches that will be run: one per
+// keyword, or one per (keyword, grid cell) when the user drew an area instead
+// of picking a point. The grid path exists because Google caps results per
+// search rather than per area — covering a neighbourhood means many small
+// searches, and the shared deduper stitches the overlapping cells back
+// together.
+func buildSeedJobs(
+	job *web.Job,
+	coords string,
+	dedup deduper.Deduper,
+	exitMonitor exiter.Exiter,
+	extraReviews bool,
+) ([]scrapemate.IJob, error) {
+	keywords := strings.NewReader(strings.Join(job.Data.Keywords, "\n"))
+
+	if job.Data.BBox != "" {
+		bbox, err := grid.ParseBoundingBox(job.Data.BBox)
+		if err != nil {
+			return nil, err
+		}
+
+		cellKm := job.Data.GridCellKm
+		if cellKm <= 0 {
+			cellKm = defaultGridCellKm
+		}
+
+		return runner.CreateGridSeedJobs(
+			job.Data.Lang,
+			keywords,
+			job.Data.Depth,
+			job.Data.Email,
+			bbox,
+			cellKm,
+			job.Data.Zoom,
+			dedup,
+			exitMonitor,
+			extraReviews,
+		)
+	}
+
+	return runner.CreateSeedJobs(
+		job.Data.FastMode,
+		job.Data.Lang,
+		keywords,
+		job.Data.Depth,
+		job.Data.Email,
+		coords,
+		job.Data.Zoom,
+		func() float64 {
+			if job.Data.Radius <= 0 {
+				return 10000 // 10 km
+			}
+
+			return float64(job.Data.Radius)
+		}(),
+		dedup,
+		exitMonitor,
+		extraReviews,
+	)
+}
+
+// defaultGridCellKm mirrors the web form's default so a job stored without an
+// explicit cell size still grids the same way the user saw it described.
+const defaultGridCellKm = 1.0
 
 // blockedMessage phrases a block for someone looking at the jobs table, who
 // needs to know whether to retry, wait, or reach for proxies — not which

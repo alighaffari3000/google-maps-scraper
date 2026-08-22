@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gosom/google-maps-scraper/grid"
 )
 
 //go:embed static
@@ -252,6 +253,15 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 	_ = tmpl.Execute(w, data)
 }
 
+const (
+	// defaultGridCellKm matches the CLI's -grid-cell default.
+	defaultGridCellKm = 1.0
+
+	// maxGridCells bounds how much work one submission can queue. Sized so a
+	// job stays in the hours-not-days range on a single browser.
+	maxGridCells = 400
+)
+
 func (s *Server) scrape(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -330,6 +340,44 @@ func (s *Server) scrape(w http.ResponseWriter, r *http.Request) {
 
 	newJob.Data.Lat = r.Form.Get("latitude")
 	newJob.Data.Lon = r.Form.Get("longitude")
+
+	// A bounding box turns the job into a grid of searches. Rejected up front
+	// rather than at scrape time so a mistyped rectangle is a form error the
+	// user can see, not a job that fails minutes later.
+	if bbox := strings.TrimSpace(r.Form.Get("bbox")); bbox != "" {
+		box, err := grid.ParseBoundingBox(bbox)
+		if err != nil {
+			http.Error(w, "invalid area: "+err.Error(), http.StatusUnprocessableEntity)
+
+			return
+		}
+
+		cellKm := defaultGridCellKm
+
+		if raw := strings.TrimSpace(r.Form.Get("gridcell")); raw != "" {
+			cellKm, err = strconv.ParseFloat(raw, 64)
+			if err != nil || cellKm <= 0 {
+				http.Error(w, "invalid grid cell size", http.StatusUnprocessableEntity)
+
+				return
+			}
+		}
+
+		// Each cell is a separate Google search. A rectangle drawn a little
+		// too eagerly can mean thousands of them, which is hours of scraping
+		// and a near-certain block — better to refuse than to accept silently.
+		if cells := grid.EstimateCellCount(box, cellKm); cells > maxGridCells {
+			http.Error(w,
+				fmt.Sprintf("that area needs %d searches (limit %d) — draw a smaller area or increase the cell size",
+					cells, maxGridCells),
+				http.StatusUnprocessableEntity)
+
+			return
+		}
+
+		newJob.Data.BBox = bbox
+		newJob.Data.GridCellKm = cellKm
+	}
 
 	newJob.Data.Depth, err = strconv.Atoi(r.Form.Get("depth"))
 	if err != nil {

@@ -185,8 +185,8 @@
                                 </details>
                             </div>
 
-                            <button type="submit"
-                                    class="mt-5 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 transition-colors">
+                            <button type="submit" id="submit-btn"
+                                    class="mt-5 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                                 <span id="spinner" class="htmx-indicator w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
                                 Start Scraping
                             </button>
@@ -195,8 +195,19 @@
                         <!-- Location picker -->
                         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
                             <div class="px-6 py-4 border-b border-slate-200">
-                                <h2 class="text-base font-semibold text-slate-900">Search Location</h2>
-                                <p class="text-sm text-slate-500">Just pan and zoom &mdash; the centre of the map (crosshair) is the selected point, and latitude, longitude and zoom update automatically.</p>
+                                <div class="flex items-start justify-between gap-4 flex-wrap">
+                                    <div>
+                                        <h2 class="text-base font-semibold text-slate-900">Search Location</h2>
+                                        <p id="map-help" class="text-sm text-slate-500">Just pan and zoom &mdash; the centre of the map (crosshair) is the selected point, and latitude, longitude and zoom update automatically.</p>
+                                    </div>
+                                    <div class="flex rounded-lg border border-slate-200 overflow-hidden shrink-0">
+                                        <button type="button" id="mode-point"
+                                                class="px-3 py-1.5 text-xs font-medium bg-brand-600 text-white">Point</button>
+                                        <button type="button" id="mode-area"
+                                                class="px-3 py-1.5 text-xs font-medium bg-white text-slate-600 hover:bg-slate-50">Area</button>
+                                    </div>
+                                </div>
+                                <p id="area-summary" class="mt-2 text-sm hidden"></p>
                             </div>
                             <div id="location-picker-map" class="w-full flex-1 min-h-[560px]"></div>
                         </div>
@@ -205,6 +216,13 @@
                         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col">
                             <h2 class="text-base font-semibold text-slate-900 mb-1">Location Settings</h2>
                             <p class="text-sm text-slate-500 mb-4">Follows the map centre, or enter coordinates manually.</p>
+                            <input type="hidden" id="bbox" name="bbox" value="">
+                            <div id="grid-settings" class="hidden mb-4">
+                                <label for="gridcell" class="block text-sm text-slate-600 mb-1">Grid cell size (km)</label>
+                                <input type="number" id="gridcell" name="gridcell" value="1" min="0.2" step="0.1"
+                                       class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                                <p class="mt-1 text-xs text-slate-500">Smaller cells find more places but take longer. Google caps results per search, not per area.</p>
+                            </div>
                             <div class="space-y-4">
                                 <div>
                                     <label for="zoom" class="block text-sm text-slate-600 mb-1">Zoom</label>
@@ -348,6 +366,121 @@
             zoomInput.addEventListener('change', function () {
                 var z = parseInt(zoomInput.value, 10);
                 if (!isNaN(z)) map.setZoom(z);
+            });
+
+
+            // ---- Area mode -------------------------------------------------
+            //
+            // Point mode searches once at the crosshair. Google caps results
+            // per search rather than per area, so a busy neighbourhood returns
+            // a truncated list no matter how the zoom is set. Area mode drags
+            // out a rectangle and the server splits it into a grid, running one
+            // search per cell and de-duplicating across them.
+            var MAX_CELLS = 400;
+            var KM_PER_DEG_LAT = 111.32;
+
+            var bboxInput = document.getElementById('bbox');
+            var cellInput = document.getElementById('gridcell');
+            var gridSettings = document.getElementById('grid-settings');
+            var areaSummary = document.getElementById('area-summary');
+            var mapHelp = document.getElementById('map-help');
+            var pointBtn = document.getElementById('mode-point');
+            var areaBtn = document.getElementById('mode-area');
+            var submitBtn = document.getElementById('submit-btn');
+
+            var POINT_HELP = mapHelp.textContent;
+            var AREA_HELP = 'Drag on the map to draw a rectangle. Every place inside it is searched, cell by cell.';
+
+            var areaMode = false;
+            var rect = null;
+            var dragOrigin = null;
+
+            function estimateCells(bounds, cellKm) {
+                if (!bounds || !(cellKm > 0)) return 0;
+                var sw = bounds.getSouthWest(), ne = bounds.getNorthEast();
+                var latKm = (ne.lat - sw.lat) * KM_PER_DEG_LAT;
+                var midLat = (ne.lat + sw.lat) / 2;
+                var lonKm = (ne.lng - sw.lng) * KM_PER_DEG_LAT * Math.cos(midLat * Math.PI / 180);
+                return Math.max(1, Math.ceil(latKm / cellKm)) * Math.max(1, Math.ceil(lonKm / cellKm));
+            }
+
+            function refreshArea() {
+                if (!areaMode || !rect) {
+                    bboxInput.value = '';
+                    areaSummary.classList.add('hidden');
+                    submitBtn.disabled = false;
+                    return;
+                }
+
+                var b = rect.getBounds();
+                var sw = b.getSouthWest(), ne = b.getNorthEast();
+                bboxInput.value = [sw.lat, sw.lng, ne.lat, ne.lng]
+                    .map(function (n) { return n.toFixed(6); }).join(',');
+
+                var cells = estimateCells(b, parseFloat(cellInput.value));
+                var tooMany = cells > MAX_CELLS;
+
+                // Each cell is a separate Google search, so the count is the
+                // honest unit of cost here — minutes and block risk both scale
+                // with it. Say so before the job is queued, not after.
+                areaSummary.textContent = tooMany
+                    ? cells + ' searches needed — over the limit of ' + MAX_CELLS + '. Draw a smaller area or raise the cell size.'
+                    : cells + ' search' + (cells === 1 ? '' : 'es') + ' will cover this area.';
+                areaSummary.className = 'mt-2 text-sm ' + (tooMany ? 'text-red-600 font-medium' : 'text-slate-500');
+                submitBtn.disabled = tooMany;
+            }
+
+            function setAreaMode(on) {
+                areaMode = on;
+
+                pointBtn.className = 'px-3 py-1.5 text-xs font-medium ' +
+                    (on ? 'bg-white text-slate-600 hover:bg-slate-50' : 'bg-brand-600 text-white');
+                areaBtn.className = 'px-3 py-1.5 text-xs font-medium ' +
+                    (on ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50');
+
+                mapHelp.textContent = on ? AREA_HELP : POINT_HELP;
+                gridSettings.classList.toggle('hidden', !on);
+                crosshair.style.display = on ? 'none' : '';
+
+                // Dragging has to mean "draw" in area mode, so panning is
+                // disabled; the map is still navigable by scroll and keyboard.
+                if (on) {
+                    map.dragging.disable();
+                    map.getContainer().style.cursor = 'crosshair';
+                } else {
+                    map.dragging.enable();
+                    map.getContainer().style.cursor = '';
+                    if (rect) { map.removeLayer(rect); rect = null; }
+                }
+
+                refreshArea();
+            }
+
+            pointBtn.addEventListener('click', function () { setAreaMode(false); });
+            areaBtn.addEventListener('click', function () { setAreaMode(true); });
+            cellInput.addEventListener('input', refreshArea);
+
+            map.on('mousedown', function (e) {
+                if (!areaMode) return;
+                dragOrigin = e.latlng;
+                if (rect) { map.removeLayer(rect); rect = null; }
+            });
+
+            map.on('mousemove', function (e) {
+                if (!areaMode || !dragOrigin) return;
+                var bounds = L.latLngBounds(dragOrigin, e.latlng);
+                if (rect) {
+                    rect.setBounds(bounds);
+                } else {
+                    rect = L.rectangle(bounds, { color: '#4f46e5', weight: 2, fillOpacity: 0.1 }).addTo(map);
+                }
+                refreshArea();
+            });
+
+            map.on('mouseup', function () {
+                if (!areaMode) return;
+                dragOrigin = null;
+                refreshArea();
             });
 
             setTimeout(function () { map.invalidateSize(); }, 0);
