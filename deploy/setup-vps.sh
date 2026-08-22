@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 #
-# One-shot host preparation for a fresh Debian/Ubuntu VPS: swap, Docker, and a
-# firewall that leaves only SSH and the web ports open. Safe to re-run — every
-# step checks whether it has already been done.
+# Host preparation for a Debian/Ubuntu VPS: swap and Docker, nothing else.
+#
+# This deliberately touches nothing it was not asked to. It does not configure
+# a firewall, stop services, or alter networking — the server may be running
+# other things, and ports 80/443 in particular may already be spoken for.
+# Safe to re-run: every step checks whether it has already been done.
 set -euo pipefail
 
 log() { printf '\n\033[1;34m==>\033[0m %s\n' "$1"; }
@@ -12,23 +15,27 @@ if [ "$(id -u)" -ne 0 ]; then
 	exit 1
 fi
 
-log "Adding swap"
-# On a 2 GB host this is not a nicety. Chromium's memory use is spiky, and
-# without swap a spike means the OOM killer picks a victim — often sshd.
-if swapon --show | grep -q '/swapfile'; then
-	echo "swap already active, skipping"
+log "Checking swap"
+# Chromium's memory use is spiky, so some swap is the difference between a
+# slow scrape and the OOM killer picking a victim. Report what is already
+# there and only create swap if the host has none at all — an existing setup
+# is the operator's, not ours to second-guess.
+swap_kb=$(awk '/^SwapTotal:/ {print $2}' /proc/meminfo)
+swap_mb=$((swap_kb / 1024))
+
+if [ "$swap_mb" -ge 2048 ]; then
+	echo "${swap_mb} MB of swap already active - leaving it alone"
+elif [ "$swap_mb" -gt 0 ]; then
+	echo "Only ${swap_mb} MB of swap active. 2048 MB or more is recommended,"
+	echo "but adding to an existing setup is left to you."
 else
+	echo "No swap found. Creating a 2 GB swapfile."
 	fallocate -l 2G /swapfile
 	chmod 600 /swapfile
 	mkswap /swapfile
 	swapon /swapfile
 	grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >>/etc/fstab
 fi
-
-log "Lowering swappiness"
-# Swap here is an emergency buffer, not a place to page out an idle process.
-echo 'vm.swappiness=10' >/etc/sysctl.d/99-swappiness.conf
-sysctl -q -p /etc/sysctl.d/99-swappiness.conf
 
 log "Installing Docker"
 if command -v docker >/dev/null 2>&1; then
@@ -51,17 +58,11 @@ https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable" \
 	systemctl enable --now docker
 fi
 
-log "Configuring the firewall"
-if command -v ufw >/dev/null 2>&1 || apt-get install -y -qq ufw; then
-	ufw allow OpenSSH >/dev/null
-	ufw allow 80/tcp >/dev/null
-	ufw allow 443/tcp >/dev/null
-	ufw --force enable >/dev/null
-	echo "ufw: SSH, 80 and 443 open; everything else closed"
-fi
-
 log "Done"
 echo "Free memory:"
 free -h
 echo
-echo "Next: cd into the repo's deploy/ directory, create .env, then run ./up.sh"
+echo "Ports 80 and 443 must be free for Caddy. Check with:"
+echo "  ss -tlnp '( sport = :80 or sport = :443 )'"
+echo
+echo "Next: create .env in this directory, then run ./up.sh"

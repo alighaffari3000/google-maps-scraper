@@ -15,8 +15,16 @@ cd google-maps-scraper/deploy
 ./setup-vps.sh
 ```
 
-This adds 2 GB of swap, installs Docker, and closes every port except SSH, 80
-and 443. It is safe to re-run.
+This installs Docker and reports on swap, adding a 2 GB swapfile only if the
+host has none. It changes nothing else — no firewall rules, no networking, no
+touching services already on the box. Safe to re-run.
+
+**Check that ports 80 and 443 are free first.** If the VPS already serves
+something, see "Already running a web server" below.
+
+```
+ss -tlnp '( sport = :80 or sport = :443 )'
+```
 
 ## 2. Configure
 
@@ -59,6 +67,23 @@ your jobs. Back it up with:
 docker run --rm -v deploy_scraper-data:/data -v "$PWD":/backup alpine \
   tar czf /backup/scraper-data.tar.gz -C /data .
 ```
+
+## Already running a web server
+
+Caddy wants 80 and 443 to obtain and serve its own certificate. If nginx,
+Apache, or another Caddy already owns them, do not stop them — publish this
+stack on free ports instead and proxy to it from what you already run.
+
+In `.env`:
+
+```
+HTTP_PORT=8080
+HTTPS_PORT=8443
+```
+
+Then point your existing server at `http://127.0.0.1:8080`. Basic Auth still
+applies, and TLS is handled by the front server rather than by Caddy, so
+`SITE_ADDRESS` should be the hostname that server already serves.
 
 ## Expectations
 

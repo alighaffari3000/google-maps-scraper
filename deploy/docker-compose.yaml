@@ -30,9 +30,12 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    # Configurable because this VPS may already run a web server. Leave at
+    # 80/443 for Caddy to get its own certificate; point them somewhere free
+    # (see README, "Already running a web server") to sit behind an existing one.
     ports:
-      - "80:80"
-      - "443:443"
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
