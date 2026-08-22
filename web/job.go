@@ -103,6 +103,18 @@ type JobData struct {
 	// unless BBox is set; zero means the grid package's own default.
 	GridCellKm float64 `json:"grid_cell_km,omitempty"`
 
+	// Lead filters, applied when results are read rather than written: the
+	// CSV keeps every row, so changing these is a re-download rather than a
+	// re-scrape. See LeadFilter.
+	RequirePhone  bool `json:"require_phone,omitempty"`
+	ExcludeClosed bool `json:"exclude_closed,omitempty"`
+	MinReviews    int  `json:"min_reviews,omitempty"`
+
+	// NormalizePhones rewrites Iranian numbers into E.164 in the downloaded
+	// workbook, so a sheet mixing +98/0/00 prefixes can be dialled from and
+	// imported without hand-editing.
+	NormalizePhones bool `json:"normalize_phones,omitempty"`
+
 	// Error, when non-empty, explains why a job did not produce what the user
 	// expected. It is set for outcomes that a bare "failed" status cannot
 	// distinguish — being rate limited by Google above all, which otherwise

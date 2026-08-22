@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,7 +41,7 @@ func (s *Service) AllWithResults(ctx context.Context) ([]JobView, error) {
 	views := make([]JobView, len(jobs))
 
 	for i, job := range jobs {
-		views[i] = JobView{Job: job, Results: s.ResultCount(job.ID)}
+		views[i] = JobView{Job: job, Results: s.ResultCount(job.ID, job.Data.LeadFilter())}
 	}
 
 	return views, nil
@@ -50,7 +51,7 @@ func (s *Service) AllWithResults(ctx context.Context) ([]JobView, error) {
 // source of truth: it is what Download and View are built from, and unlike the
 // stored progress counters it is also correct for jobs scraped by older builds.
 // A job with no CSV yet (pending, failed, deleted output) counts as zero.
-func (s *Service) ResultCount(id string) int {
+func (s *Service) ResultCount(id string, filter LeadFilter) int {
 	path, err := s.csvPath(id)
 	if err != nil {
 		return 0
@@ -69,22 +70,49 @@ func (s *Service) ResultCount(id string) int {
 	// reviews contain embedded newlines, so one record is not one line.
 	reader := csv.NewReader(f)
 	reader.FieldsPerRecord = -1
-	reader.ReuseRecord = true
 
-	count := -1 // the header row is not a result
+	header, err := reader.Read()
+	if err != nil {
+		return 0
+	}
+
+	col := make(map[string]int, len(header))
+	for i, name := range header {
+		col[name] = i
+	}
+
+	count := 0
 
 	for {
-		if _, err := reader.Read(); err != nil {
+		record, err := reader.Read()
+		if err != nil {
 			break
+		}
+
+		if filter.Active() && !filter.Keep(func(name string) string {
+			if i, ok := col[name]; ok && i < len(record) {
+				return record[i]
+			}
+
+			return ""
+		}) {
+			continue
 		}
 
 		count++
 	}
 
-	return max(count, 0)
+	return count
 }
 
 func (s *Service) Get(ctx context.Context, id string) (Job, error) {
+	// A Service can legitimately be built for file-only work (GetPlaces,
+	// ResultCount) with no repository behind it. Saying so beats panicking on
+	// a nil interface several frames down.
+	if s.repo == nil {
+		return Job{}, errors.New("no job repository configured")
+	}
+
 	return s.repo.Get(ctx, id)
 }
 

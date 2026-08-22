@@ -24,7 +24,7 @@ func TestGetPlacesParsesCSV(t *testing.T) {
 		"Coffee Place,1 Main St,37.7749,-122.4194,http://maps/1,cafe,555,http://web,4.5\n"
 	writeCSV(t, dir, "job-1", csv)
 
-	places, err := svc.GetPlaces(context.Background(), "job-1")
+	places, err := svc.GetPlaces(context.Background(), "job-1", LeadFilter{})
 	if err != nil {
 		t.Fatalf("GetPlaces: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestGetPlacesSkipsRowsWithoutCoords(t *testing.T) {
 		"Good,1.5,2.5\n"
 	writeCSV(t, dir, "job-2", csv)
 
-	places, err := svc.GetPlaces(context.Background(), "job-2")
+	places, err := svc.GetPlaces(context.Background(), "job-2", LeadFilter{})
 	if err != nil {
 		t.Fatalf("GetPlaces: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestGetPlacesSkipsNonFiniteAndOutOfRangeCoords(t *testing.T) {
 		"Good,1.5,2.5,4.5\n"
 	writeCSV(t, dir, "job-nf", csv)
 
-	places, err := svc.GetPlaces(context.Background(), "job-nf")
+	places, err := svc.GetPlaces(context.Background(), "job-nf", LeadFilter{})
 	if err != nil {
 		t.Fatalf("GetPlaces: %v", err)
 	}
@@ -177,7 +177,7 @@ func (r *memoryJobRepoForServiceTest) Update(context.Context, *Job) error { retu
 func TestGetPlacesMissingCSV(t *testing.T) {
 	svc := NewService(nil, t.TempDir())
 
-	if _, err := svc.GetPlaces(context.Background(), "missing"); err == nil {
+	if _, err := svc.GetPlaces(context.Background(), "missing", LeadFilter{}); err == nil {
 		t.Fatal("expected error for missing csv")
 	}
 }
@@ -185,7 +185,7 @@ func TestGetPlacesMissingCSV(t *testing.T) {
 func TestGetPlacesRejectsTraversal(t *testing.T) {
 	svc := NewService(nil, t.TempDir())
 
-	if _, err := svc.GetPlaces(context.Background(), "../etc/passwd"); err == nil {
+	if _, err := svc.GetPlaces(context.Background(), "../etc/passwd", LeadFilter{}); err == nil {
 		t.Fatal("expected error for path traversal")
 	}
 }
@@ -214,7 +214,7 @@ func TestResultCount(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := svc.ResultCount(tt.id); got != tt.want {
+			if got := svc.ResultCount(tt.id, LeadFilter{}); got != tt.want {
 				t.Fatalf("ResultCount(%q) = %d, want %d", tt.id, got, tt.want)
 			}
 		})

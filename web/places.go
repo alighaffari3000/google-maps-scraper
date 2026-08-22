@@ -31,7 +31,10 @@ type Place struct {
 // GetPlaces locates the job's CSV output and parses it into mappable places.
 // In web mode each job writes exactly one {id}.csv, so that file is the single
 // source of truth for the map.
-func (s *Service) GetPlaces(_ context.Context, id string) ([]Place, error) {
+// filter keeps the map in agreement with the download and with the count in
+// the jobs table; pins for rows the user filtered out would make the three
+// disagree about what the job produced. Pass the zero value to see everything.
+func (s *Service) GetPlaces(_ context.Context, id string, filter LeadFilter) ([]Place, error) {
 	path, err := s.csvPath(id)
 	if err != nil {
 		return nil, err
@@ -50,13 +53,13 @@ func (s *Service) GetPlaces(_ context.Context, id string) ([]Place, error) {
 		_ = f.Close()
 	}()
 
-	return parsePlaces(f)
+	return parsePlaces(f, filter)
 }
 
 // parsePlaces reads scraped results from a CSV stream and returns the places
 // that have valid coordinates. Columns are resolved by header name so the
 // parser tolerates reordering; the names mirror gmaps.Entry.CsvHeaders().
-func parsePlaces(r io.Reader) ([]Place, error) {
+func parsePlaces(r io.Reader, filter LeadFilter) ([]Place, error) {
 	reader := csv.NewReader(r)
 	reader.FieldsPerRecord = -1
 
@@ -93,6 +96,10 @@ func parsePlaces(r io.Reader) ([]Place, error) {
 
 		if err != nil {
 			return nil, err
+		}
+
+		if !filter.Keep(func(name string) string { return get(row, name) }) {
+			continue
 		}
 
 		lat, errLat := strconv.ParseFloat(get(row, "latitude"), 64)

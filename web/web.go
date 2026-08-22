@@ -379,6 +379,21 @@ func (s *Server) scrape(w http.ResponseWriter, r *http.Request) {
 		newJob.Data.GridCellKm = cellKm
 	}
 
+	// Lead filters. Unset means "keep everything", which is what every
+	// existing job and every API caller already expects.
+	newJob.Data.RequirePhone = r.Form.Get("requirephone") == "on"
+	newJob.Data.ExcludeClosed = r.Form.Get("excludeclosed") == "on"
+	newJob.Data.NormalizePhones = r.Form.Get("normalizephones") == "on"
+
+	if raw := strings.TrimSpace(r.Form.Get("minreviews")); raw != "" {
+		newJob.Data.MinReviews, err = strconv.Atoi(raw)
+		if err != nil || newJob.Data.MinReviews < 0 {
+			http.Error(w, "invalid minimum review count", http.StatusUnprocessableEntity)
+
+			return
+		}
+	}
+
 	newJob.Data.Depth, err = strconv.Atoi(r.Form.Get("depth"))
 	if err != nil {
 		http.Error(w, "invalid depth", http.StatusUnprocessableEntity)
@@ -673,7 +688,15 @@ func (s *Server) viewJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	places, err := s.svc.GetPlaces(r.Context(), id.String())
+	// A job that cannot be read still gets its map, unfiltered: failing the
+	// whole view over a missing filter would be worse than showing everything.
+	var filter LeadFilter
+
+	if job, err := s.svc.Get(r.Context(), id.String()); err == nil {
+		filter = job.Data.LeadFilter()
+	}
+
+	places, err := s.svc.GetPlaces(r.Context(), id.String(), filter)
 
 	if err != nil {
 		if !errors.Is(err, ErrPlacesNotFound) {

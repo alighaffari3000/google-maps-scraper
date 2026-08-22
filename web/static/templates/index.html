@@ -139,6 +139,42 @@
 
                                 <details class="group rounded-lg border border-slate-200 open:pb-4">
                                     <summary class="cursor-pointer select-none list-none px-3 py-2 text-sm font-medium text-slate-700 flex items-center justify-between">
+                                        Lead Quality
+                                        <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.19l3.71-3.96a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06z" clip-rule="evenodd"/></svg>
+                                    </summary>
+                                    <div class="px-3 space-y-3">
+                                        <p class="text-xs text-slate-500">Applied when you download, not when scraping &mdash; every result is kept on the server, so changing these never costs a re-scrape.</p>
+
+                                        <label for="requirephone" class="flex items-center gap-2 text-sm text-slate-700">
+                                            <input type="checkbox" id="requirephone" name="requirephone"
+                                                   class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                                            Only results with a phone number
+                                        </label>
+
+                                        <label for="excludeclosed" class="flex items-center gap-2 text-sm text-slate-700">
+                                            <input type="checkbox" id="excludeclosed" name="excludeclosed"
+                                                   class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                                            Exclude permanently closed
+                                        </label>
+
+                                        <label for="normalizephones" class="flex items-center gap-2 text-sm text-slate-700">
+                                            <input type="checkbox" id="normalizephones" name="normalizephones"
+                                                   class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                                            Normalize Iranian phone numbers
+                                        </label>
+                                        <p class="text-xs text-slate-500 -mt-1 ps-6">Rewrites 021&nbsp;8884&nbsp;9410 and +98&nbsp;21&nbsp;8884&nbsp;9410 alike to +982188849410, ready for bulk SMS or CRM import.</p>
+
+                                        <div>
+                                            <label for="minreviews" class="block text-sm text-slate-600 mb-1">Minimum reviews</label>
+                                            <input type="number" id="minreviews" name="minreviews" value="0" min="0" step="1"
+                                                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                                            <p class="mt-1 text-xs text-slate-500">0 keeps everything.</p>
+                                        </div>
+                                    </div>
+                                </details>
+
+                                <details class="group rounded-lg border border-slate-200 open:pb-4">
+                                    <summary class="cursor-pointer select-none list-none px-3 py-2 text-sm font-medium text-slate-700 flex items-center justify-between">
                                         Output Fields
                                         <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.19l3.71-3.96a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06z" clip-rule="evenodd"/></svg>
                                     </summary>

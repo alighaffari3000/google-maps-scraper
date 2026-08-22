@@ -207,7 +207,13 @@ func (w *webrunner) scrapeJob(ctx context.Context, job *web.Job) error {
 
 		xlsxPath := strings.TrimSuffix(outpath, ".csv") + ".xlsx"
 
-		if err := exportXLSX(outpath, xlsxPath, job.Data.Fields); err != nil {
+		opts := exportOptions{
+			Fields:          job.Data.Fields,
+			Filter:          job.Data.LeadFilter(),
+			NormalizePhones: job.Data.NormalizePhones,
+		}
+
+		if err := exportXLSX(outpath, xlsxPath, opts); err != nil {
 			log.Printf("failed to export xlsx for job %s: %v", job.ID, err)
 		}
 	}()
