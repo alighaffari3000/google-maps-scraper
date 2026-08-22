@@ -16,6 +16,17 @@
         {{ end }}
     </td>
     <td class="px-6 py-3 whitespace-nowrap">
+        {{ if gt .Results 0 }}
+            <span class="inline-flex items-center rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                {{.Results}}
+            </span>
+        {{ else if eq .Status "ok" }}
+            <span class="text-xs text-slate-400">0</span>
+        {{ else }}
+            <span class="text-xs text-slate-300">&mdash;</span>
+        {{ end }}
+    </td>
+    <td class="px-6 py-3 whitespace-nowrap">
         <div class="flex items-center gap-2">
             {{ if eq .Status "ok" }}
                 <button type="button"

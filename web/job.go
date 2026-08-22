@@ -36,6 +36,17 @@ type Job struct {
 	Data   JobData
 }
 
+// JobView decorates a Job with information that lives outside the database.
+// Results is the number of places actually written to the job's CSV, which the
+// stored progress counters can't answer for jobs that finished before those
+// counters existed. Job is embedded, so templates keep reaching .ID, .Name and
+// .Data unchanged.
+type JobView struct {
+	Job
+
+	Results int
+}
+
 func (j *Job) Validate() error {
 	if j.ID == "" {
 		return errors.New("missing id")

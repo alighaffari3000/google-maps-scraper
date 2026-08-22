@@ -189,3 +189,34 @@ func TestGetPlacesRejectsTraversal(t *testing.T) {
 		t.Fatal("expected error for path traversal")
 	}
 }
+
+func TestResultCount(t *testing.T) {
+	dir := t.TempDir()
+	svc := NewService(nil, dir)
+
+	writeCSV(t, dir, "empty", "title,phone\n")
+	writeCSV(t, dir, "two", "title,phone\nA,1\nB,2\n")
+	// open_hours and reviews legitimately contain newlines, so a record is
+	// not the same thing as a line.
+	writeCSV(t, dir, "multiline", "title,open_hours\nA,\"Mon\nTue\"\nB,\"Wed\nThu\"\n")
+
+	tests := []struct {
+		name string
+		id   string
+		want int
+	}{
+		{"header only", "empty", 0},
+		{"two rows", "two", 2},
+		{"embedded newlines", "multiline", 2},
+		{"no csv at all", "missing", 0},
+		{"path traversal", "../../etc/passwd", 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := svc.ResultCount(tt.id); got != tt.want {
+				t.Fatalf("ResultCount(%q) = %d, want %d", tt.id, got, tt.want)
+			}
+		})
+	}
+}

@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,6 +27,61 @@ func (s *Service) Create(ctx context.Context, job *Job) error {
 
 func (s *Service) All(ctx context.Context) ([]Job, error) {
 	return s.repo.Select(ctx, SelectParams{})
+}
+
+// AllWithResults returns every job together with how many results it produced.
+// Counting is per-job file I/O, so it belongs here rather than in the template.
+func (s *Service) AllWithResults(ctx context.Context) ([]JobView, error) {
+	jobs, err := s.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	views := make([]JobView, len(jobs))
+
+	for i, job := range jobs {
+		views[i] = JobView{Job: job, Results: s.ResultCount(job.ID)}
+	}
+
+	return views, nil
+}
+
+// ResultCount reports how many places a job wrote to its CSV. The file is the
+// source of truth: it is what Download and View are built from, and unlike the
+// stored progress counters it is also correct for jobs scraped by older builds.
+// A job with no CSV yet (pending, failed, deleted output) counts as zero.
+func (s *Service) ResultCount(id string) int {
+	path, err := s.csvPath(id)
+	if err != nil {
+		return 0
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return 0
+	}
+
+	defer func() {
+		_ = f.Close()
+	}()
+
+	// Read as CSV rather than counting lines: fields such as open_hours and
+	// reviews contain embedded newlines, so one record is not one line.
+	reader := csv.NewReader(f)
+	reader.FieldsPerRecord = -1
+	reader.ReuseRecord = true
+
+	count := -1 // the header row is not a result
+
+	for {
+		if _, err := reader.Read(); err != nil {
+			break
+		}
+
+		count++
+	}
+
+	return max(count, 0)
 }
 
 func (s *Service) Get(ctx context.Context, id string) (Job, error) {
