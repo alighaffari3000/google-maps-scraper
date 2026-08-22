@@ -1,0 +1,42 @@
+# nginx site for the scraper. Copy to /etc/nginx/sites-available/, edit the
+# two placeholders, symlink into sites-enabled/, then `nginx -t && systemctl
+# reload nginx`.
+#
+# Add this as a NEW file. Do not edit an existing site config.
+#
+# Before enabling, create the password file:
+#   apt-get install -y apache2-utils
+#   htpasswd -c /etc/nginx/.htpasswd-scraper admin
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name SCRAPER_HOSTNAME;
+
+    # certbot fills in the TLS listener and the redirect when you run:
+    #   certbot --nginx -d SCRAPER_HOSTNAME
+
+    location / {
+        # The scraper has no authentication of its own and serves downloads of
+        # every scraped lead database plus an unauthenticated delete endpoint.
+        # This is the only thing protecting it.
+        auth_basic           "Scraper";
+        auth_basic_user_file /etc/nginx/.htpasswd-scraper;
+
+        proxy_pass         http://127.0.0.1:8081;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+
+        # Scrapes are long-running and the UI streams progress; the 60s
+        # default would cut responses off mid-job.
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+
+        # Exported XLSX files can be large, and buffering them to disk first
+        # only adds latency.
+        proxy_buffering off;
+    }
+}

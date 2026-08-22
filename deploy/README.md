@@ -70,20 +70,42 @@ docker run --rm -v deploy_scraper-data:/data -v "$PWD":/backup alpine \
 
 ## Already running a web server
 
-Caddy wants 80 and 443 to obtain and serve its own certificate. If nginx,
-Apache, or another Caddy already owns them, do not stop them — publish this
-stack on free ports instead and proxy to it from what you already run.
-
-In `.env`:
+Caddy needs 80 and 443 to obtain and serve its own certificate. If nginx or
+Apache already owns them, do not stop it — run the scraper on the loopback
+interface and proxy to it from the server you already have. Then that server
+handles TLS and Basic Auth, and Caddy never starts.
 
 ```
-HTTP_PORT=8080
-HTTPS_PORT=8443
+cp .env.example .env          # SCRAPER_PORT is the only value that matters here
+docker compose -f docker-compose.yaml -f docker-compose.behind-proxy.yaml up -d
 ```
 
-Then point your existing server at `http://127.0.0.1:8080`. Basic Auth still
-applies, and TLS is handled by the front server rather than by Caddy, so
-`SITE_ADDRESS` should be the hostname that server already serves.
+The scraper is now on `127.0.0.1:8081` and unreachable from outside the host.
+
+For nginx, `nginx-site.conf.example` is a ready site config. Create the
+password file, install the site, and let certbot add TLS:
+
+```
+apt-get install -y apache2-utils
+htpasswd -c /etc/nginx/.htpasswd-scraper admin
+
+cp nginx-site.conf.example /etc/nginx/sites-available/scraper
+sed -i 's/SCRAPER_HOSTNAME/your.hostname.here/' /etc/nginx/sites-available/scraper
+ln -s /etc/nginx/sites-available/scraper /etc/nginx/sites-enabled/scraper
+nginx -t && systemctl reload nginx
+
+certbot --nginx -d your.hostname.here
+```
+
+No spare domain? `sslip.io` resolves an embedded IP back to itself, so
+`193-24-120-105.sslip.io` is a usable hostname that certbot will issue for.
+
+Subsequent starts must repeat both `-f` flags, or Compose will fall back to
+the Caddy layout:
+
+```
+docker compose -f docker-compose.yaml -f docker-compose.behind-proxy.yaml up -d
+```
 
 ## Expectations
 

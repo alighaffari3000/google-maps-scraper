@@ -1,0 +1,15 @@
+# Overlay for hosts that already run a web server on 80/443.
+#
+#   docker compose -f docker-compose.yaml -f docker-compose.behind-proxy.yaml up -d
+#
+# Caddy is parked behind a profile so it never starts, and the scraper is
+# published on the loopback interface only — the existing nginx/Apache reaches
+# it over 127.0.0.1, the internet cannot reach it at all.
+services:
+  scraper:
+    ports:
+      - "127.0.0.1:${SCRAPER_PORT:-8081}:8080"
+
+  caddy:
+    profiles:
+      - disabled
